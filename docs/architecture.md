@@ -88,7 +88,8 @@ test run, not a code change — which matters because the ISM is reissued quarte
 These came from bugs, and each one has a test pinning it.
 
 **A measurement failure is a bug, not a result.** If the tool says "unknown", the instrument
-failed until proven otherwise. Seven separate defects were found by taking this seriously.
+failed until proven otherwise. Several of the defects in the changelog were found by taking
+this seriously rather than accepting an "unknown".
 
 **Unmeasured is never compliant.** An endpoint that could not be reached gets no score, no band
 and no pass. It must never satisfy a policy gate.

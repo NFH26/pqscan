@@ -6,7 +6,7 @@ PQScan needs Python 3.11 or newer and nothing else. It does **not** need OpenSSL
 SSH and IKEv2 itself, which is deliberate — see [Architecture](architecture.md#why-not-openssl).
 
 ```bash
-git clone https://github.com/nayefalharbi/pqscan.git
+git clone https://github.com/NFH26/pqscan.git
 cd pqscan
 ./pqc setup
 ```

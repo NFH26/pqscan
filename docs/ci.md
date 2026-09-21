@@ -7,7 +7,7 @@
 | `0` | Scan completed, no policy gate failed |
 | `1` | A policy gate failed, or authorisation was not confirmed |
 | `2` | Bad input — no targets, an unknown format, a scope file that excluded everything |
-| `70` | Internal error. This is a bug; please [report it](https://github.com/nayefalharbi/pqscan/issues) |
+| `70` | Internal error. This is a bug; please [report it](https://github.com/NFH26/pqscan/issues) |
 
 ## Policy gates
 

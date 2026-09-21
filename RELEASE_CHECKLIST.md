@@ -18,11 +18,11 @@ If you ever restore an older clone, the PDF is back in its history; delete that 
 than pushing it.
 
 **2. Set the repository URL.** The docs assume
-`https://github.com/nayefalharbi/pqscan`. If your username or repository name differs:
+`https://github.com/NFH26/pqscan`. If your username or repository name differs:
 
 ```bash
-grep -rl "nayefalharbi/pqscan" --include="*.md" --include="*.yml" --include="*.py" --include="*.toml" . \
-  | xargs sed -i.bak 's|nayefalharbi/pqscan|YOUR-USER/YOUR-REPO|g' && find . -name '*.bak' -delete
+grep -rl "NFH26/pqscan" --include="*.md" --include="*.yml" --include="*.py" --include="*.toml" . \
+  | xargs sed -i.bak 's|NFH26/pqscan|YOUR-USER/YOUR-REPO|g' && find . -name '*.bak' -delete
 ```
 
 **3. Check the author name and email on every commit** if you are publishing history:

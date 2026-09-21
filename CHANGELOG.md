@@ -52,8 +52,9 @@ First public release.
   promises and `doctor` reports as fine.
 - **A file descriptor leaked on every exception path** in the main TLS connection, which is the
   weak-crypto path, so scanning a legacy estate exhausted descriptors.
-- **Hosts that only speak 3DES, RC4 or NULL were unmeasurable.** OpenSSL 3.5 removed those
-  suites entirely; PQScan now builds its own ClientHello and measures them.
+- **Hosts that only speak 3DES, RC4 or NULL were unmeasurable.** Current OpenSSL builds do not
+  offer those suites, so the `ssl` module cannot reach such a host; PQScan now builds its own
+  ClientHello and measures them.
 - **Network failures were reported as ISM breaches.** A DNS timeout on `_dmarc` was
   indistinguishable from a domain publishing no DMARC.
 - **IKEv2 transforms were read from a fixed offset**, ignoring the declared SPI size, producing
@@ -107,4 +108,4 @@ First public release.
   classified unapproved: ISM-1991 lists only ML-DSA-65 and ML-DSA-87.
 - NULL and EXPORT ciphers scored separately from weak-but-real ciphers, at the cap.
 
-[0.4.0]: https://github.com/nayefalharbi/pqscan/releases/tag/v0.4.0
+[0.4.0]: https://github.com/NFH26/pqscan/releases/tag/v0.4.0

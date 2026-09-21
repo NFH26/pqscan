@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report privately through
-[GitHub Security Advisories](https://github.com/nayefalharbi/pqscan/security/advisories/new)
+[GitHub Security Advisories](https://github.com/NFH26/pqscan/security/advisories/new)
 rather than opening a public issue.
 
 Please include what an attacker could do, how to reproduce it, and the version from
@@ -36,7 +36,7 @@ neither is proof of absence.
 - Scanning a host you are not authorised to scan. The `--confirm-authorised` flag exists
   precisely so that this is your decision and your responsibility.
 - A finding you disagree with because of how the ISM is read. Please open a
-  [rule correction](https://github.com/nayefalharbi/pqscan/issues/new?template=rule_correction.yml)
+  [rule correction](https://github.com/NFH26/pqscan/issues/new?template=rule_correction.yml)
   instead — those are welcome and useful.
 - Weaknesses in the endpoints you scan. Reporting those is the point of the tool.
 

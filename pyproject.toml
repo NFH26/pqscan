@@ -35,11 +35,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nayefalharbi/pqscan"
-Documentation = "https://github.com/nayefalharbi/pqscan/blob/main/README.md"
-Repository = "https://github.com/nayefalharbi/pqscan"
-Issues = "https://github.com/nayefalharbi/pqscan/issues"
-Changelog = "https://github.com/nayefalharbi/pqscan/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/NFH26/pqscan"
+Documentation = "https://github.com/NFH26/pqscan/blob/main/README.md"
+Repository = "https://github.com/NFH26/pqscan"
+Issues = "https://github.com/NFH26/pqscan/issues"
+Changelog = "https://github.com/NFH26/pqscan/blob/main/CHANGELOG.md"
 
 [project.scripts]
 pqc-scan = "pqc_scan.cli:app"

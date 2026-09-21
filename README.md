@@ -3,12 +3,12 @@
 **Post-quantum readiness scanning for TLS, SSH, IPsec and email, scored against the Australian
 ASD Information Security Manual.**
 
-[![CI](https://github.com/nayefalharbi/pqscan/actions/workflows/ci.yml/badge.svg)](https://github.com/nayefalharbi/pqscan/actions/workflows/ci.yml)
+[![CI](https://github.com/NFH26/pqscan/actions/workflows/ci.yml/badge.svg)](https://github.com/NFH26/pqscan/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
-The Australian Signals Directorate (ASD) expects Australian organisations to complete their
-post-quantum transition by the end of 2030. The deadline is set by its
+The Australian Signals Directorate (ASD) recommends that Australian organisations complete
+their post-quantum transition by the end of 2030. The date comes from its
 [Information Security Manual](https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/ism)
 (ISM), and the ISM is what PQScan measures against. Every classification cites the ISM control
 behind it, and every control number is checked on each run against ASD's machine-readable
@@ -39,7 +39,8 @@ Recommendations
 
 Read the Status column first. **3 PQ capable** means the server already supports a post-quantum
 key exchange and negotiates a classical one anyway. It is one configuration line from compliant,
-and a scanner that reports only the group that was negotiated cannot tell you that.
+and no tool I am aware of reports that: a scanner that reads only the negotiated group cannot
+see it.
 
 That example is a single TLS handshake against a public website, which is what any browser does
 on every visit. Measuring an estate is different, and PQScan will not do it without
@@ -53,25 +54,27 @@ Most scanners answer "is this TLS configuration good?". PQScan answers a differe
 **"does this endpoint meet the ISM, and what do I change?"**
 
 - **It maps to ASD ISM control numbers.** 48 controls across TLS, SSH, IPsec, email and
-  certificates, verified against ASD's published OSCAL catalog on every run. I have not found
-  another scanner that maps findings to ISM control numbers.
-- **It measures what OpenSSL refuses to.** OpenSSL 3.5 removed 3DES, RC4, NULL and EXPORT from
-  its cipher list, so a host that only speaks those is unreachable through the `ssl` module.
-  PQScan builds its own ClientHello and measures them anyway — those are the hosts a readiness
-  report most needs to name.
+  certificates, verified against ASD's published OSCAL catalog on every run. No tool I am aware
+  of maps findings to ISM control numbers.
+- **It measures what OpenSSL will not.** Modern OpenSSL builds do not offer 3DES, RC4 or
+  EXPORT suites at all, and offer NULL only at security level 0, so a host that speaks only
+  those cannot be reached through Python's `ssl` module. PQScan builds its own ClientHello and
+  measures them anyway — those are the hosts a readiness report most needs to name.
 - **It separates *can't* from *doesn't*.** A server that supports ML-KEM but negotiates x25519
-  scores as classical in every other tool. PQScan calls it **PQ capable**, which is the
+  scores as classical in the tools I have tried. PQScan calls it **PQ capable**, which is the
   difference between a morning's work and a procurement cycle.
-- **It knows Australia is different.** ASD does **not** recommend hybrid schemes, while NIST,
-  NCSC and the EU do. Under the ISM, both halves of the world's default `X25519MLKEM768` lose
-  approval after 2030, so adopting the global default commits you to a second migration.
+- **It knows Australia is different.** ASD does **not** recommend hybrid schemes, where NIST,
+  NCSC and several European agencies do. Under the ISM, both halves of the world's default
+  `X25519MLKEM768` lose approval after 2030, so adopting the global default commits you to a
+  second migration. [Scoring](docs/scoring.md#why-hybrids-are-transitional-not-approved) quotes
+  ASD's wording and shows the reasoning.
 
 ## Install
 
 Requires Python 3.11 or newer. Nothing else — not even OpenSSL.
 
 ```bash
-git clone https://github.com/nayefalharbi/pqscan.git
+git clone https://github.com/NFH26/pqscan.git
 cd pqscan
 ./pqc setup
 ```

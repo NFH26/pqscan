@@ -20,7 +20,7 @@ sustained disruption of discussion.
 ## Reporting
 
 Contact the maintainer privately through
-[GitHub Security Advisories](https://github.com/nayefalharbi/pqscan/security/advisories/new),
+[GitHub Security Advisories](https://github.com/NFH26/pqscan/security/advisories/new),
 which is private, or by an issue if the matter is not sensitive. Reports are handled discreetly.
 The maintainer may edit, remove or reject contributions and comments that are not consistent
 with this document, and may ban a contributor for sustained or serious breaches.

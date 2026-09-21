@@ -144,7 +144,7 @@ def write_sarif(path: Path, findings, certificates, engine, metadata, reporter=N
         "runs": [{
             "tool": {"driver": {
                 "name": "pqscan",
-                "informationUri": "https://github.com/nayefalharbi/pqscan",
+                "informationUri": "https://github.com/NFH26/pqscan",
                 "version": str(metadata.get("tool_version", "0")),
                 "rules": list(rules.values()),
             }},

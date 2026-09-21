@@ -39,4 +39,4 @@ jobs:
           files: dist/*
           generate_release_notes: true
           body: |
-            See [CHANGELOG.md](https://github.com/nayefalharbi/pqscan/blob/main/CHANGELOG.md).
+            See [CHANGELOG.md](https://github.com/NFH26/pqscan/blob/main/CHANGELOG.md).

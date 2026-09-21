@@ -7,7 +7,7 @@ is less about style and more about not being quietly wrong.
 ## Getting set up
 
 ```bash
-git clone https://github.com/nayefalharbi/pqscan.git
+git clone https://github.com/NFH26/pqscan.git
 cd pqscan
 ./pqc setup
 pqc test
