@@ -1,0 +1,190 @@
+# Scoring weights for the ASD ISM profile.
+#
+# Companion to pqc_scan/rules/asd_ism.yaml, which holds the classifications and the ISM
+# citations. This file holds only the numbers.
+#
+# How scoring works: every term below is ADDITIVE, summed before the criticality
+# multiplier is applied, and the result is then clamped to `cap`.
+#
+# Two principles decide whether something gets a real penalty or a token weight:
+#   1. An ISM control worded "... is used" is mandatory. Breaching it takes a real penalty.
+#   2. Anything the ISM words "preferably ..." is a preference, not a control. It is
+#      recorded as an informational finding with a token weight, and all such notes
+#      together are capped by informational_note_cap so they cannot distort a score.
+#
+# A score at the cap hides detail, so EVERY item below must also be emitted as a named
+# finding even when the score has already saturated. The finding is the deliverable; the
+# number is a summary of it.
+
+confidentiality:
+  cap: 100
+
+  # Classification of the negotiated key exchange group, from asd_ism.yaml.
+  key_exchange:
+    APPROVED: 0                        # pure ML-KEM-1024
+    TRANSITIONAL: 20                   # ML-KEM-768, and all PQ/traditional hybrids
+    REVIEW: 50
+    NOT_APPROVED_AFTER_2030: 80        # classical ECDH/DH, retires end of 2030
+    NOT_APPROVED: 100
+
+  # Charged when the endpoint offers no post-quantum group at all.
+  # NOTE: this depends on whether a PQ group was offered, NOT on the classification.
+  # A TRANSITIONAL hybrid DOES offer a PQ group and must not be charged this.
+  no_pq_group_offered: 20
+
+  # Harvest-now-decrypt-later exposure: the longer the data must stay confidential,
+  # the worse a non-PQ key exchange is today.
+  data_lifetime_years:
+    5_to_10: 10
+    over_10: 20
+
+  # TLS protocol-level controls. See the tls block in asd_ism.yaml.
+  protocol:
+    # ISM-1139: "Only the latest version of TLS is used for TLS connections."
+    # Deliberately small. A non-TLS-1.3 endpoint already saturates on key exchange
+    # alone, so the value of this item is the FINDING, not the number. Do not raise
+    # the cap to make room for it.
+    tls_version_not_approved: 10
+    # ISM-1369: "AES-GCM is used for encryption of TLS connections." Mandatory.
+    cipher_not_aes_gcm: 20
+    # AES-128 and AES-192 are not approved beyond 2030; ISM-1917 requires AES-256
+    # support by 2030.
+    symmetric_not_approved_after_2030: 10
+    # AES is the only approved symmetric algorithm (ISM, approved algorithms section).
+    symmetric_not_approved: 40
+    # ISM-0469: an approved protocol is used when encrypting data in transit. A NULL or
+    # EXPORT cipher means there is no confidentiality at all, which has to outrank every
+    # weak-but-real cipher; on its own it reaches the cap.
+    no_encryption: 100
+    # ISM-0471. Offering a weak suite is a finding even when it is not the one negotiated,
+    # because the client picks and an attacker is a client.
+    unapproved_cipher_accepted: 35
+    # ISM-1372 (ephemeral DH or ECDH) and ISM-1453 (Perfect Forward Secrecy).
+    no_forward_secrecy: 40
+  # ISM-0471: "Only AACAs or high assurance cryptographic algorithms are used by
+  # cryptographic equipment, applications and libraries." An endpoint that OFFERS an
+  # unapproved algorithm will use it when a client asks, so offering one is itself a breach.
+  # Charged per algorithm and capped, so a long legacy list cannot swamp everything else.
+  unapproved_algorithm_offered: 15
+  unapproved_algorithm_cap: 45
+
+  criticality_multiplier:
+    low: 0.7
+    medium: 1.0
+    high: 1.3
+
+authentication:
+  cap: 100
+
+  # Worst signature classification across the whole certificate chain, counted once.
+  signature_algorithm:
+    APPROVED: 0                        # ML-DSA-87
+    TRANSITIONAL: 20                   # ML-DSA-65, not approved beyond 2030
+    REVIEW: 30
+    NOT_APPROVED_AFTER_2030: 50        # RSA and ECDSA signatures, retire end of 2030
+    NOT_APPROVED: 100                  # SHA-1, MD5, DSA, EdDSA, SLH-DSA, ML-DSA-44
+
+  # Worst hash in the chain, counted once. SHA-384 and SHA-512 are approved and score 0;
+  # SHA-224 and SHA-256 are not approved beyond 2030.
+  hashes:
+    APPROVED: 0
+    NOT_APPROVED_AFTER_2030: 10
+    NOT_APPROVED: 20
+
+  # Certificate path validation failures (expired, hostname mismatch, untrusted root,
+  # self-signed, incomplete chain). One penalty per distinct defect.
+  validation_failure_penalty: 20
+  validation_failure_cap: 60
+
+  # TLS 1.0 or 1.1 only: the chain cannot be meaningfully assessed.
+  obsolete_tls_penalty: 40
+
+  # A certificate whose validity runs past a milestone will still be in service when
+  # the algorithm behind it stops being approved.
+  not_after_2028: 10
+  not_after_2030: 20
+
+  # Key sizes, from the key_sizes block in asd_ism.yaml.
+  key_size:
+    # Below an ISM minimum: RSA under 2048 (ISM-0476), EC under 224 bits (ISM-0474,
+    # ISM-0475), DH under 2048 (ISM-0472). These are mandatory minimums.
+    below_minimum: 40
+    # Below an ISM preference: RSA under 3072, or a curve other than P-384.
+    # The ISM says "preferably", so this is a note, not a breach.
+    below_preferred: 5
+
+  # ISM-1761/1762 (ECDH) and ISM-1763/1764 (ECDSA): at SECRET only P-256, P-384 and
+  # P-521 are permitted, and at TOP SECRET only P-384 and P-521. Mandatory at those
+  # classifications, not applicable at NC, OS and PROTECTED.
+  classification_curve_violation: 30
+
+  # Ceiling for all "below_preferred" style informational notes combined, so that
+  # preferences can never outweigh an actual control breach.
+  informational_note_cap: 10
+
+  # ISM-0471, as above, for the authentication side (SSH host keys and their signatures).
+  unapproved_algorithm_offered: 15
+  unapproved_algorithm_cap: 45
+
+  criticality_multiplier:
+    low: 0.7
+    medium: 1.0
+    high: 1.3
+
+# ---------------------------------------------------------------------------
+# Readiness band
+# ---------------------------------------------------------------------------
+# A 0-5 band describing what an endpoint DOES, derived only from what a handshake can show.
+#
+# This is PQScan's own scale. It deliberately does NOT claim to implement the PKI Consortium's
+# PQC Maturity Model. The PQCMM rates a named product or service as released and shipped, and
+# its levels 2 and above require evidence no scanner can observe: conformance test results,
+# an SBOM and CBOM, crypto-agility across algorithms, an HNDL exposure register, zero-legacy
+# configurability including firmware signing, and independent FIPS or Common Criteria
+# validation. Assigning one of its levels from a TLS handshake would misstate the model. See
+# https://pkic.org/wg/pqc/pqcmm/ - a scan can contribute evidence to such an assessment, but
+# it cannot be one.
+#
+# What this band adds over the raw score: it separates "cannot do post-quantum" from "can but
+# does not", which is the single most actionable distinction in a migration, and it is exactly
+# what the capability probe exists to find.
+#
+# Anything in `disqualifiers` forces band 0 regardless of score: an endpoint with no
+# encryption, an obsolete protocol or a plaintext service has no posture to rate.
+readiness_band:
+  disqualifiers:
+    - no_tls_offered
+    - null_or_export_cipher
+    - broken_stream_cipher
+    - obsolete_cipher
+    - weak_dh_parameters
+    - ike_version_not_approved
+    - ipsec_no_integrity_without_aead
+  disqualify_obsolete_protocol: true
+  levels:
+    5:
+      name: "PQ approved"
+      summary: "Negotiates a post-quantum key exchange ASD approves beyond 2030"
+      requires_readiness: [pure_pq_approved]
+    4:
+      name: "PQ in use"
+      summary: "Negotiates a post-quantum key exchange today, on a transitional parameter set"
+      requires_readiness: [hybrid_transitional]
+    3:
+      name: "PQ capable"
+      summary: "Supports a post-quantum key exchange but does not negotiate one"
+      requires_readiness: [classical_only]
+      requires_pq_capability: true
+    2:
+      name: "Sound classical"
+      summary: "No post-quantum support, but current protocol versions and approved algorithms"
+      max_confidentiality: 75
+      max_authentication: 75
+    1:
+      name: "Dated"
+      summary: "Reachable and encrypted, but behind on protocol version or algorithms"
+      max_confidentiality: 100
+      max_authentication: 100
+    0:
+      name: "Unprotected"
+      summary: "No encryption, an obsolete protocol, or a service that will not encrypt"

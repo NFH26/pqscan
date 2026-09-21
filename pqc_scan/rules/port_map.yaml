@@ -1,0 +1,31 @@
+# Default protocol for a port when the host file does not name one. A port is a convention,
+# not a contract, so a wrong guess is recoverable: a TLS probe that fails at the record layer
+# triggers a banner sniff and a retry under the detected protocol (see probes.run_probe).
+ports:
+  22: "ssh"
+  2222: "ssh"
+
+  443: "tls"
+  8443: "tls"
+  636: "tls"          # LDAPS
+  465: "tls"          # SMTPS, implicit TLS
+  993: "tls"          # IMAPS
+  995: "tls"          # POP3S
+  853: "tls"          # DNS over TLS - ISM-2017 requires DNS traffic to be encrypted
+  784: "tls"          # DNS over QUIC/TLS
+  8853: "tls"
+  5061: "tls"         # SIP over TLS - ISM-0548 requires a secure session initiation protocol
+  6514: "tls"         # syslog over TLS
+  2083: "tls"
+  9443: "tls"
+
+  25: "starttls:smtp"
+  587: "starttls:smtp"
+  143: "starttls:imap"
+  110: "starttls:pop3"
+  21: "starttls:ftp"
+  389: "starttls:ldap"
+  5432: "starttls:postgres"
+
+  500: "ipsec"        # IKEv2 - the ISM's IPsec section
+  4500: "ipsec"       # IKE behind NAT

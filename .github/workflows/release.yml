@@ -1,0 +1,54 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: Check the tag matches the packaged version
+        # A release tagged v0.4.0 that ships 0.3.0 is a support problem forever.
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          built=$(ls dist/*.whl | sed -E 's/.*-([0-9][^-]*)-py3.*/\1/')
+          test "$tag" = "$built" || { echo "tag $tag != version $built"; exit 1; }
+      - run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with: {name: dist, path: dist/}
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: dist, path: dist}
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            See [CHANGELOG.md](https://github.com/nayefalharbi/pqscan/blob/main/CHANGELOG.md).
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    # Trusted publishing: no API token is stored anywhere. Configure the publisher at
+    # https://pypi.org/manage/project/pqc-scan/settings/publishing/ before the first release.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pqc-scan
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: dist, path: dist}
+      - uses: pypa/gh-action-pypi-publish@release/v1

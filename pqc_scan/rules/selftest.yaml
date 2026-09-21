@@ -1,0 +1,229 @@
+# Reference endpoints with a known, stable answer, one group per capability.
+#
+# This is a test of the SCANNER, not of the hosts. Each case says what a correct scanner must
+# conclude about a host whose configuration is well known and slow to change. If a case fails,
+# either the tool regressed or the host changed - and the message tells you which to check.
+#
+# Every case must be checkable without credentials, and nothing here is scanned in a way the
+# host operator would object to: these are public test endpoints or major public services.
+#
+# `expect` keys:
+#   service        which probe should have handled it (proves protocol routing and detection)
+#   readiness      pure_pq_approved | hybrid_transitional | classical_only
+#   measured       true means a score must exist; a null score is a scanner failure
+#   findings       substrings that must appear in rule_findings or validation_failures
+#   absent         substrings that must NOT appear
+#   group_contains substring the negotiated group must contain
+#   max_band      the band must not exceed this
+#   min_band      the band must not fall below this
+version: 1
+cases:
+  # --- TLS 1.3 with a post-quantum hybrid -----------------------------------------------
+  - name: "TLS hybrid post-quantum"
+    host: cloudflare.com
+    port: 443
+    protocol: tls
+    expect:
+      service: tls
+      readiness: hybrid_transitional
+      measured: true
+      group_contains: MLKEM
+      min_band: 3
+
+  - name: "TLS capability exceeds negotiation"
+    host: www.google.com
+    port: 443
+    protocol: tls
+    # Google negotiates X25519MLKEM768 but also supports MLKEM1024. The capability probe is
+    # the only thing that can see the stronger group, so this case proves it still runs.
+    expect:
+      service: tls
+      readiness: hybrid_transitional
+      measured: true
+      findings: [capability_exceeds_default_negotiation]
+
+  # --- SSH -------------------------------------------------------------------------------
+  - name: "SSH hybrid post-quantum"
+    host: gitlab.com
+    port: 22
+    protocol: ssh
+    expect:
+      service: ssh
+      readiness: hybrid_transitional
+      measured: true
+      group_contains: mlkem
+
+  - name: "SSH classical, NTRU Prime is not ML-KEM"
+    host: github.com
+    port: 22
+    protocol: ssh
+    # sntrup761 is Streamlined NTRU Prime. It is quantum-resistant in practice and NOT an
+    # ASD-approved algorithm, so a scanner that reports this as hybrid is wrong.
+    expect:
+      service: ssh
+      readiness: classical_only
+      measured: true
+      group_contains: sntrup761
+
+  # --- Protocol auto-detection ------------------------------------------------------------
+  - name: "SSH on a TLS port is detected, not failed"
+    host: ssh.github.com
+    port: 443
+    protocol: null          # deliberately unset: the scanner must work it out
+    expect:
+      service: ssh
+      readiness: classical_only
+      measured: true
+
+  # --- Weak crypto OpenSSL will not negotiate ---------------------------------------------
+  - name: "3DES-only host is measured, not unknown"
+    host: 3des.badssl.com
+    port: 443
+    protocol: tls
+    # OpenSSL 3.5 removed 3DES from its TLS cipher list, so this host is unreachable through
+    # ssl.SSLContext. Only the raw ClientHello can measure it.
+    expect:
+      service: tls
+      readiness: classical_only
+      measured: true
+      max_band: 0
+
+  - name: "NULL cipher scores at the cap"
+    host: null.badssl.com
+    port: 443
+    protocol: tls
+    # No encryption at all must never score better than weak encryption.
+    expect:
+      service: tls
+      readiness: classical_only
+      measured: true
+      min_confidentiality: 100
+      max_band: 0
+
+  - name: "RC4-only host is measured"
+    host: rc4.badssl.com
+    port: 443
+    protocol: tls
+    expect:
+      service: tls
+      readiness: classical_only
+      measured: true
+      max_band: 0
+
+  # --- Certificate validation --------------------------------------------------------------
+  - name: "Expired certificate is detected"
+    host: expired.badssl.com
+    port: 443
+    protocol: tls
+    expect:
+      service: tls
+      measured: true
+      findings: [expired]
+
+  - name: "Hostname mismatch is detected"
+    host: wrong.host.badssl.com
+    port: 443
+    protocol: tls
+    expect:
+      service: tls
+      measured: true
+      findings: [hostname_mismatch]
+
+  - name: "Self-signed certificate is detected"
+    host: self-signed.badssl.com
+    port: 443
+    protocol: tls
+    expect:
+      service: tls
+      measured: true
+      findings: [self_signed]
+
+  - name: "A valid certificate raises no validation failure"
+    host: cloudflare.com
+    port: 443
+    protocol: tls
+    # Guards the close_notify regression: Gmail and Microsoft 365 send a session ticket
+    # after close_notify, which once turned a valid certificate into a verification error.
+    expect:
+      service: tls
+      measured: true
+      absent: [expired, self_signed, hostname_mismatch, strict_verify_error, untrusted_root]
+
+  # --- STARTTLS ----------------------------------------------------------------------------
+  - name: "SMTP STARTTLS"
+    host: smtp.gmail.com
+    port: 587
+    protocol: "starttls:smtp"
+    expect:
+      service: tls
+      readiness: hybrid_transitional
+      measured: true
+
+  - name: "FTPS STARTTLS with a multi-line greeting"
+    host: test.rebex.net
+    port: 21
+    protocol: "starttls:ftp"
+    # Rebex indents its banner continuation lines instead of prefixing them with the reply
+    # code, which used to make the greeting reader stop on the wrong line.
+    expect:
+      service: tls
+      measured: true
+
+  - name: "A server that refuses STARTTLS is a finding, not an error"
+    host: ftp.gnu.org
+    port: 21
+    protocol: "starttls:ftp"
+    expect:
+      service: tls
+      measured: true
+      findings: [no_tls_offered]
+      max_band: 0
+
+  # --- Implicit TLS on other ports -----------------------------------------------------------
+  - name: "IMAPS on 993"
+    host: imap.gmail.com
+    port: 993
+    protocol: tls
+    expect:
+      service: tls
+      readiness: hybrid_transitional
+      measured: true
+
+  - name: "DNS over TLS (ISM-2017)"
+    host: one.one.one.one
+    port: 853
+    protocol: null          # resolved from the port map
+    expect:
+      service: tls
+      readiness: hybrid_transitional
+      measured: true
+
+  # --- IPsec ----------------------------------------------------------------------------------
+  - name: "IKEv2 transforms (ISM-1233, 1771, 1772, 0998, 0999)"
+    host: vpn.strongswan.org
+    port: 500
+    protocol: ipsec
+    # Needs outbound UDP 500. On a network that filters it this reports UNREACHABLE, not FAIL.
+    expect:
+      service: ipsec
+      readiness: classical_only
+      measured: true
+      group_contains: ECP
+
+  # --- Domain controls --------------------------------------------------------------------------
+  - name: "Domain with hard-fail SPF and DMARC reject"
+    host: ato.gov.au
+    port: 0
+    protocol: domain
+    # ato.gov.au publishes -all and p=reject, so neither finding may appear.
+    expect:
+      service: domain
+      absent: [spf_absent, spf_not_hard_fail, dmarc_absent, dmarc_policy_not_reject]
+
+  - name: "Domain missing every email control"
+    host: badssl.com
+    port: 0
+    protocol: domain
+    expect:
+      service: domain
+      findings: [spf_absent, dmarc_absent, mta_sts_absent]

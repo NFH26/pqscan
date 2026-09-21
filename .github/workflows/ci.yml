@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev --python ${{ matrix.python }}
+      - name: Unit tests
+        run: uv run pytest -q
+      - name: Rules, scoring and output checks
+        # No network, so it runs everywhere. Catches a rule profile that no longer
+        # matches ASD's catalog, which a unit test cannot see.
+        run: uv run pqc selftest --offline
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+        continue-on-error: true
+      - run: uv run mypy pqc_scan/
+        continue-on-error: true
+
+  build:
+    name: build and verify the package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - run: uvx twine check dist/*
+      - name: Install the wheel and run it
+        # A package that builds but does not run is a package that fails on someone
+        # else's machine instead of ours.
+        run: |
+          uv venv /tmp/fresh
+          VIRTUAL_ENV=/tmp/fresh uv pip install dist/*.whl
+          /tmp/fresh/bin/pqc doctor
+          /tmp/fresh/bin/pqc selftest --offline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  live:
+    name: live protocol self-test
+    runs-on: ubuntu-latest
+    # Reaches public endpoints, so it is not run on forks or on every pull request.
+    if: github.event_name != 'pull_request'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra dev
+      - run: uv run pqc selftest

@@ -1,0 +1,31 @@
+name: Rule or ISM mapping correction
+description: A control is cited wrongly, an algorithm is classified wrongly, or the ISM changed
+labels: [rules]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The rule profile is a reading of the ISM, and readings can be wrong. Corrections with a
+        citation are the most valuable contributions this project can receive.
+  - type: input
+    id: control
+    attributes:
+      label: ISM control
+      placeholder: ISM-1995
+  - type: textarea
+    id: current
+    attributes:
+      label: What the tool does now
+      description: Quote the relevant line from `pqc_scan/rules/asd_ism.yaml` if you can.
+    validations: {required: true}
+  - type: textarea
+    id: correct
+    attributes:
+      label: What it should do, and why
+      description: Please quote the ISM wording you are relying on.
+    validations: {required: true}
+  - type: input
+    id: ism
+    attributes:
+      label: ISM version
+      placeholder: September 2026 / OSCAL 2026.09.4

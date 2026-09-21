@@ -1,0 +1,111 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pqc-scan"
+version = "0.4.0"
+description = "Post-quantum readiness scanner for TLS and SSH, scored against the ASD ISM"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{name = "Nayef Alharbi"}]
+keywords = ["post-quantum", "pqc", "ml-kem", "ml-dsa", "tls", "ssh", "asd", "ism", "cbom"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Networking :: Monitoring",
+    "Environment :: Console",
+    "Typing :: Typed",
+    "Topic :: Security :: Cryptography",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "cryptography>=42.0.0",
+    "jinja2>=3.1.3",
+    "pydantic>=2.7.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/nayefalharbi/pqscan"
+Documentation = "https://github.com/nayefalharbi/pqscan/blob/main/README.md"
+Repository = "https://github.com/nayefalharbi/pqscan"
+Issues = "https://github.com/nayefalharbi/pqscan/issues"
+Changelog = "https://github.com/nayefalharbi/pqscan/blob/main/CHANGELOG.md"
+
+[project.scripts]
+pqc-scan = "pqc_scan.cli:app"
+pqc = "pqc_scan.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "mypy>=1.9.0",
+    "ruff>=0.3.0",
+    "types-PyYAML",
+]
+
+[tool.mypy]
+# Not strict. Strict mode on a codebase that leans on pydantic and Typer produces a wall of
+# annotation noise that hides the two or three findings that matter, and a gate nobody can
+# pass is a gate everybody turns off. These checks are the ones that catch real bugs.
+warn_redundant_casts = true
+warn_unused_ignores = true
+# warn_unreachable is deliberately off: several entry points validate argument types at
+# runtime for direct Python callers, which mypy reads as unreachable.
+no_implicit_optional = true
+ignore_missing_imports = true
+# Without this, mypy sees pqc_scan/models.py as both "models" and "pqc_scan.models" and
+# refuses to check anything at all.
+explicit_package_bases = true
+mypy_path = "."
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+# Selected explicitly rather than left to the default, so a ruff upgrade cannot silently
+# change what CI enforces.
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # import order
+    "UP",        # pyupgrade - keeps the code on modern syntax as the floor rises
+    "B",         # bugbear
+    "SIM",       # simplify
+    "C4",        # comprehensions
+    "DTZ",       # naive datetimes, which silently misreport a scan time
+    "LOG", "G",  # logging correctness
+    "RUF",
+]
+ignore = [
+    # Teardown and probe paths catch broadly on purpose: a close that fails, or a server that
+    # answers nonsense, must not change what was measured. Where it matters, the handler names
+    # the exceptions it expects - see the DNS lookup in domain_probe.py.
+    "BLE001",
+    # The same reasoning: `except Exception: pass` around a socket close is deliberate.
+    "S110",
+    "E501",      # line length is enforced by the formatter, not twice
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert on internals and build deliberately malformed input.
+"tests/*" = ["S101", "SLF001", "E741"]
+
+[tool.pytest.ini_options]
+markers = [
+    "network: exercises real hosts and is skipped unless RUN_NETWORK=1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pqc_scan"]

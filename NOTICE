@@ -1,0 +1,25 @@
+PQScan
+Copyright 2026 Nayef Alharbi
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+--------------------------------------------------------------------------------
+Third-party material
+--------------------------------------------------------------------------------
+
+ISM control identifiers in pqc_scan/rules/ism_controls.txt are extracted from the
+Australian Signals Directorate's Information Security Manual OSCAL catalog:
+
+    https://github.com/AustralianCyberSecurityCentre/ism-oscal
+
+That catalog is published by the Commonwealth of Australia under the Creative
+Commons Attribution 4.0 International licence (CC BY 4.0):
+
+    https://creativecommons.org/licenses/by/4.0/
+
+Control text quoted in the rule profile and documentation is quoted for the
+purpose of identifying which requirement each classification implements.
+
+This project is not affiliated with, endorsed by, or an official product of the
+Australian Signals Directorate. It does not reproduce the ISM itself, and it is
+not a substitute for an assessment by a qualified assessor.
