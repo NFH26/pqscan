@@ -21,7 +21,7 @@ jobs:
           built=$(ls dist/*.whl | sed -E 's/.*-([0-9][^-]*)-py3.*/\1/')
           test "$tag" = "$built" || { echo "tag $tag != version $built"; exit 1; }
       - run: uvx twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: {name: dist, path: dist/}
 
   # No PyPI job. Installation is a clone and `./pqc setup`, which keeps the GitHub page the

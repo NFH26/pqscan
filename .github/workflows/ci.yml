@@ -64,7 +64,7 @@ jobs:
           VIRTUAL_ENV=/tmp/fresh uv pip install dist/*.whl
           /tmp/fresh/bin/pqc doctor
           /tmp/fresh/bin/pqc selftest --offline
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
