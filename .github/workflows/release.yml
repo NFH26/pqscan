@@ -24,6 +24,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: {name: dist, path: dist/}
 
+  # No PyPI job. Installation is a clone and `./pqc setup`, which keeps the GitHub page the
+  # one place people land. To publish to PyPI later, configure trusted publishing for the
+  # project and add a job that runs pypa/gh-action-pypi-publish against this build.
   github-release:
     needs: build
     runs-on: ubuntu-latest
@@ -37,18 +40,3 @@ jobs:
           generate_release_notes: true
           body: |
             See [CHANGELOG.md](https://github.com/nayefalharbi/pqscan/blob/main/CHANGELOG.md).
-
-  pypi:
-    needs: build
-    runs-on: ubuntu-latest
-    # Trusted publishing: no API token is stored anywhere. Configure the publisher at
-    # https://pypi.org/manage/project/pqc-scan/settings/publishing/ before the first release.
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pqc-scan
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with: {name: dist, path: dist}
-      - uses: pypa/gh-action-pypi-publish@release/v1

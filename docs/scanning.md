@@ -52,8 +52,10 @@ port list gets wrong.
 
 ## Host files
 
-CSV with a header row. Only `hostname` is required. See
-[`examples/hosts.csv`](../examples/hosts.csv).
+CSV with a header row. Only `hostname` is required. Copy
+[`examples/hosts.csv`](../examples/hosts.csv) for your own estate, or run
+[`examples/testbed.csv`](../examples/testbed.csv) to see the tool work against public endpoints
+with a known answer.
 
 ```csv
 hostname,port,protocol,owner,system_name,criticality,data_lifetime_years,classification

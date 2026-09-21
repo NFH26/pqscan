@@ -35,7 +35,7 @@ def test_write_terminal_contains_host_name(capsys):
     # narrow width a captured console reports, so a substring check there tests nothing.
     tiles = {left[0]: left[1] for left, _ in reporter._summary_stats["tiles"]}
     tiles.update({right[0]: right[1] for _, right in reporter._summary_stats["tiles"] if right})
-    assert tiles["Hosts scanned"] == "2"
+    assert tiles["Endpoints"].startswith("2 ")
     assert "Profile" in tiles
     # One of two hosts went unmeasured, which is worth saying. "100% determinable" never was.
     assert tiles["Not measured"] == "[yellow]1 of 2[/yellow]"

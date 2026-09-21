@@ -5,28 +5,17 @@ the first release is out.
 
 ## Before the first push to GitHub
 
-**1. The ISM PDF is still in git history.**
-
-It is no longer tracked, but it exists in 2 past commits and would be published with the
-repository. It is Commonwealth copyright and not yours to redistribute. Pick one:
-
-```bash
-# Option A - start clean. Simplest, and 92 commits of history are not what gets you hired.
-rm -rf .git
-git init -b main
-git add -A
-git commit -m "PQScan 0.4.0"
-
-# Option B - keep the history, strip the file.
-pipx install git-filter-repo
-git filter-repo --path Ref --invert-paths
-```
-
-Verify either way:
+**1. History is clean.** The repository was re-initialised, so the ISM PDF that was once
+committed under `Ref/` is gone with the old history. `Ref/` is in `.gitignore`. Confirm before
+pushing, and confirm nothing local slipped in:
 
 ```bash
 git rev-list --all --objects | grep -c "Ref/"   # must be 0
+git ls-files | grep -Ei "ref/|linkedin|test-plan|reports/"   # must be empty
 ```
+
+If you ever restore an older clone, the PDF is back in its history; delete that clone rather
+than pushing it.
 
 **2. Set the repository URL.** The docs assume
 `https://github.com/nayefalharbi/pqscan`. If your username or repository name differs:
@@ -62,22 +51,15 @@ git tag -a v0.4.0 -m "PQScan 0.4.0"
 git push origin main --tags
 ```
 
-The release workflow builds, refuses to publish if the tag and the packaged version disagree,
-creates the GitHub release, and publishes to PyPI.
+The release workflow builds, refuses to release if the tag and the packaged version disagree,
+and creates the GitHub release with the wheel and sdist attached.
 
-**PyPI needs one manual step first.** Trusted publishing means no token is stored anywhere, but
-the publisher has to be registered before the first upload. At
-<https://pypi.org/manage/account/publishing/>, add a pending publisher:
-
-| Field | Value |
-|---|---|
-| PyPI project name | `pqc-scan` |
-| Owner | your GitHub username |
-| Repository | `pqscan` |
-| Workflow | `release.yml` |
-| Environment | `pypi` |
-
-Then create the `pypi` environment under Settings > Environments in the repository.
+**No PyPI.** Installation is a clone and `./pqc setup`, so the GitHub page is the one place
+people land. If you want `pip install pqc-scan` later, register a trusted publisher at
+<https://pypi.org/manage/account/publishing/> for project `pqc-scan`, repository `pqscan`,
+workflow `release.yml`, environment `pypi`, create that environment under Settings >
+Environments, and add a job to `release.yml` running `pypa/gh-action-pypi-publish` against the
+existing build.
 
 ## Worth doing soon, not before launch
 

@@ -171,10 +171,26 @@ def test_the_openssl_version_helper_never_raises(monkeypatch):
     # Scanning does not use the openssl binary, only the report header does. An unguarded
     # subprocess call here crashed the tool outright on a machine with no openssl - exactly
     # the configuration the README promises works.
-    from pqc_scan import cli
+    from pqc_scan import verify
 
     def boom(*_a, **_k):
         raise FileNotFoundError("openssl")
 
     monkeypatch.setattr("subprocess.run", boom)
-    assert cli._openssl_version() == "not found"
+    assert verify.openssl_display().startswith("not found")
+    text, parsed = verify.openssl_version()
+    assert parsed is None and text.startswith("not found")
+
+
+def test_the_openssl_display_trims_the_repeated_library_half():
+    """OpenSSL prints itself twice when the binary and the library agree.
+
+    "OpenSSL 3.6.4 ... (Library: OpenSSL 3.6.4 ...)" is the common case and the second half
+    says nothing; when they differ it is the only thing that explains a surprising result.
+    """
+    from pqc_scan import verify
+
+    same = "OpenSSL 3.6.4 25 Aug 2026 (Library: OpenSSL 3.6.4 25 Aug 2026)"
+    differs = "OpenSSL 3.6.4 25 Aug 2026 (Library: OpenSSL 3.0.2 15 Mar 2022)"
+    assert verify._trim_library_half(same) == "OpenSSL 3.6.4 25 Aug 2026"
+    assert verify._trim_library_half(differs) == differs

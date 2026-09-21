@@ -7,10 +7,19 @@ ASD Information Security Manual.**
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
-ASD expects Australian organisations to complete their post-quantum transition by the end of
-2030. PQScan tells you where you actually stand: it connects to your endpoints, reads what
-they negotiate, and reports each one against the ISM controls that govern it — with the
-control numbers, a risk score, and what to change.
+The Australian Signals Directorate (ASD) expects Australian organisations to complete their
+post-quantum transition by the end of 2030. Its
+[Information Security Manual](https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/ism)
+(ISM) is the standard that sets it, and it is the standard PQScan measures against: every
+classification in the rule profile cites the ISM control it comes from, and the control numbers
+are checked on every run against ASD's
+[OSCAL catalog](https://github.com/AustralianCyberSecurityCentre/ism-oscal).
+
+PQScan tells you where you actually stand: it connects to your endpoints, reads what they
+negotiate, and reports each one against the ISM controls that govern it — with the control
+numbers, a risk score, and what to change.
+
+PQScan is an independent project. It is not affiliated with, endorsed by, or produced by ASD.
 
 ```console
 $ pqc scan www.ato.gov.au -y
@@ -121,14 +130,14 @@ another port, and the port map already knows them.
 A compliance tool that quietly gets something wrong is worse than no tool. Two commands:
 
 ```bash
-pqc test        # 176 unit tests, no network, about ten seconds
+pqc test        # unit tests, no network, about ten seconds
 pqc selftest    # a real scan of every protocol against endpoints with a known answer
 ```
 
-`selftest` also checks that the rule profile is coherent, that the scoring invariants hold
-(stronger crypto always scores better; an unmeasured endpoint is never reported as compliant),
-that every output format is well formed, and that **every ISM control number cited still exists
-in ASD's catalog** — the ISM is reissued quarterly and control numbers are retired.
+`selftest` also checks the tool against itself: the scoring invariants, the output formats, and
+**every ISM control number cited, against ASD's catalog** — the ISM is reissued quarterly and
+control numbers are retired. [CI and automation](docs/ci.md#verifying-the-tool-in-ci) has the
+full list and the offline variant for pre-commit hooks.
 
 ## Scope and honesty
 

@@ -1,3 +1,9 @@
+# Public endpoints with a known answer, for seeing the tool work before you point it at
+# your own estate. They are third-party services: scan them lightly and infrequently.
+#
+#   pqc scan --input examples/testbed.csv -y --wide
+#
+# examples/hosts.csv is the template to copy for your own hosts.
 hostname,port,protocol,system_name,owner,criticality,classification,data_lifetime_years
 pq.cloudflareresearch.com,443,tls,Cloudflare PQ research endpoint,Testbed,low,OS,5
 cloudflare.com,443,tls,Cloudflare edge (X25519MLKEM768),Testbed,low,OS,5

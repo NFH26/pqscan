@@ -63,10 +63,40 @@ def run_command(command: list[str], timeout: float, stdin: bytes = b"") -> Comma
 
 
 def openssl_version(timeout: float = 10.0) -> tuple[str, tuple[int, int] | None]:
-    result = run_command(["openssl", "version"], timeout)
-    match = re.search(r"OpenSSL\s+(\d+)\.(\d+)", result.output)
-    parsed = (int(match.group(1)), int(match.group(2))) if match else None
-    return result.output.strip(), parsed
+    """The local OpenSSL, as text and as a (major, minor) pair.
+
+    The single place in the tool that asks the binary what it is. Never raises: OpenSSL is
+    optional for scanning, so a machine without it reports "not found" and carries on.
+    """
+    try:
+        result = run_command(["openssl", "version"], timeout)
+    except Exception as error:  # no binary, no permission, nothing on PATH
+        return f"not found ({error})", None
+    text = result.output.strip()
+    match = re.search(r"OpenSSL\s+(\d+)\.(\d+)", text)
+    if match is None:
+        return text or "not found", None
+    return text, (int(match.group(1)), int(match.group(2)))
+
+
+def _trim_library_half(text: str) -> str:
+    """Drop the "(Library: ...)" half when it repeats the binary's own version."""
+    if "(Library: " in text:
+        binary, _, library = text.partition("(Library: ")
+        if binary.strip() == library.rstrip(") ").strip():
+            return binary.strip()
+    return text
+
+
+def openssl_display(timeout: float = 5.0) -> str:
+    """The same version, trimmed for display.
+
+    OpenSSL repeats itself when the binary and the library report separately:
+    "OpenSSL 3.6.4 ... (Library: OpenSSL 3.6.4 ...)". The second half is only worth showing
+    when the two actually differ, which is the case that explains a surprising result.
+    """
+    text, _ = openssl_version(timeout)
+    return _trim_library_half(text) or "not found"
 
 
 def s_client(host: str, port: int, protocol: str | None, timeout: float, extra: tuple[str, ...] = ()) -> CommandResult:

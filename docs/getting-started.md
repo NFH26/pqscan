@@ -59,15 +59,11 @@ per recommendation and links each one to its own measurements.
 **Status** is the one column to read first. It combines post-quantum readiness and the health of
 the classical configuration into a single 0–5 band:
 
-| Band | Meaning |
-|---|---|
-| **5** PQ approved | Negotiates a post-quantum key exchange ASD approves beyond 2030 |
-| **4** PQ in use | Negotiates post-quantum today, on a parameter set that retires in 2030 |
-| **3** PQ capable | Supports post-quantum but negotiates something classical |
-| **2** Sound classical | No post-quantum, but current protocols and approved algorithms |
-| **1** Dated | Encrypted, but behind on protocol version or algorithms |
-| **0** Unprotected | No encryption, an obsolete protocol, or a service that will not encrypt |
-| **UNKNOWN** | Could not be measured — never counted as a pass |
+**5** is pure post-quantum and ASD-approved beyond 2030, **4** is post-quantum in use today,
+**3** supports post-quantum but negotiates something classical, **2** is sound classical, **1**
+is dated, **0** is unprotected, and **UNKNOWN** could not be measured and never counts as a
+pass. [Scoring](scoring.md#the-readiness-band) defines each band and what moves an endpoint
+between them.
 
 **Conf risk** and **Auth risk** are 0–100, where **0 means the endpoint already meets the
 profile** and 100 is the worst case. Confidentiality is about the key exchange and cipher —
