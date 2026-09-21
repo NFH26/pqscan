@@ -7,8 +7,9 @@ ASD Information Security Manual.**
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
-The Australian Signals Directorate (ASD) recommends that Australian organisations complete
-their post-quantum transition by the end of 2030. The date comes from its
+The Australian Signals Directorate (ASD) recommends that Australian organisations have a
+refined post-quantum transition plan **by the end of 2026**, have started transitioning by 2028,
+and have finished by 2030. The standard behind those dates is its
 [Information Security Manual](https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/ism)
 (ISM), and the ISM is what PQScan measures against. Every classification cites the ISM control
 behind it, and every control number is checked on each run against ASD's machine-readable
@@ -19,6 +20,11 @@ negotiate, and reports each one against the ISM controls that govern it: the con
 risk score, and what to change.
 
 PQScan is an independent project. It is not affiliated with, endorsed by, or produced by ASD.
+
+**This is a beta (0.4).** Every protocol it supports is exercised against public endpoints with
+known answers on each run, but it has not been used widely yet. Treat its output as evidence
+towards your transition plan, not as an assessment, and please
+[report anything it gets wrong](https://github.com/NFH26/pqscan/issues).
 
 ```console
 $ pqc scan www.ato.gov.au -y
@@ -53,7 +59,7 @@ on every visit. Measuring an estate is different, and PQScan will not do it with
 Most scanners answer "is this TLS configuration good?". PQScan answers a different question:
 **"does this endpoint meet the ISM, and what do I change?"**
 
-- **It maps to ASD ISM control numbers.** 48 controls across TLS, SSH, IPsec, email and
+- **It maps to ASD ISM control numbers.** 44 controls across TLS, SSH, IPsec, email and
   certificates, verified against ASD's published OSCAL catalog on every run. No tool I am aware
   of maps findings to ISM control numbers.
 - **It measures what OpenSSL will not.** Modern OpenSSL builds do not offer 3DES, RC4 or

@@ -235,9 +235,18 @@ def check_coverage_doc_is_complete() -> CheckResult:
     for source in (root / "pqc_scan").glob("*.py"):
         cited.update(re.findall(r"ISM-(\d+)", source.read_text(encoding="utf-8")))
 
+    # Controls the profile declares unobservable are cited in the code precisely to say they
+    # are not measured. Listing them as measured is the failure this check exists to prevent,
+    # so they are excluded rather than demanded.
+    unobservable = set(re.findall(r"ISM-(\d+):", (RULES / "asd_ism.yaml").read_text(encoding="utf-8")))
+    not_observable = coverage[coverage.index("## Not observable"):]
+    for match in re.finditer(r"ISM-(\d+)((?:,\s*\d+)*)", not_observable):
+        unobservable.add(match.group(1))
+        unobservable.update(re.findall(r"\d+", match.group(2)))
+
     problems = [
         f"ISM-{number} is cited by the tool but missing from docs/ism-coverage.md"
-        for number in sorted(cited - documented)
+        for number in sorted(cited - documented - unobservable)
     ]
     claimed = re.search(r"\*\*(\d+) controls", (root / "README.md").read_text(encoding="utf-8"))
     if claimed is None:

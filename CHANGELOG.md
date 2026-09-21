@@ -69,6 +69,15 @@ First public release.
 
 ### Changed
 
+- **The coverage page listed four IPsec controls as measured that the rule profile itself
+  declares unobservable** (ISM-0494, 0496, 0498, 1000). They are settled in `IKE_AUTH` or
+  `CREATE_CHILD_SA`, which an unauthenticated probe never reaches. Removed, and the offline
+  check now refuses to let an unobservable control be listed as measured. The documented count
+  is 44.
+- **ASD's deadlines, all three.** The docs led with 2030 alone. ASD's first milestone is a
+  refined transition plan by the end of 2026, then commencement by 2028, then completion by
+  2030; the profile carries all three as data.
+
 - **`pqc report` uses the same writers as `pqc scan --out`.** It carried its own thinner JSON
   and CBOM writers, so `report --format cbom` and `scan -f cbom` produced different documents.
   It now takes the same format names as `scan` and writes the same files. The `rich` and

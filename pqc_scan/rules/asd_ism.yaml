@@ -1,6 +1,6 @@
 # ASD ISM rule profile for pqc-scan
 #
-# Source of truth: "Ref/23. ISM - Guidelines for cryptography (September 2026).pdf"
+# Source of truth: ASD ISM, Guidelines for cryptography (September 2026). See profile.source_url.
 # (ASD Information Security Manual, Guidelines for cryptography, published September 2026).
 # Every classification below cites the control or the section that sets it.
 # Do not change a classification without quoting the ISM text that supports it.
@@ -16,7 +16,8 @@
 profile:
   name: asd_ism
   rules_version: "2026.09.1"
-  source_document: "Ref/23. ISM - Guidelines for cryptography (September 2026).pdf"
+  source_document: "ASD ISM, Guidelines for cryptography (September 2026)"
+  source_url: "https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/ism/cyber-security-guidelines/guidelines-for-cryptography"
   source_published: "September 2026"
   last_reviewed: "2026-09-20"
   milestones:
@@ -25,6 +26,10 @@ profile:
     #           ML-KEM-1024, SHA-384, SHA-512 and AES-256 by no later than 2030.
     # The ISM wording is "not approved beyond 2030", so 2030 itself is still approved.
     # transition_complete_by is therefore 1 Jan 2031, not 1 Jan 2030.
+    # ASD's "Planning for post-quantum cryptography" sets three dates. The first is the one
+    # most organisations are about to miss: a refined transition plan by the end of 2026.
+    # https://www.cyber.gov.au/business-government/secure-design/planning-for-post-quantum-cryptography
+    plan_refined_by: "2027-01-01"
     migration_started_by: "2028-01-01"
     transition_complete_by: "2031-01-01"
 
