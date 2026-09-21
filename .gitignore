@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Scan output and local state
+reports/
+.pqc_cache/
+
+# Reference material that is not ours to redistribute. The ASD ISM is Commonwealth
+# copyright; the tool reads control numbers from the OSCAL catalog instead, which ASD
+# publishes under CC BY 4.0 (see pqc_scan/rules/ism_controls.txt).
+Ref/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Superseded by pyproject.toml; kept out of the repo so there is one source of truth.
+requirements.txt
+
+# Drafts and local working files that are not part of the tool.
+LINKEDIN-POST.md
+Claude outputs/

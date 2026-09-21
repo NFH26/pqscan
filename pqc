@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# pqc - launcher for the ASD PQC readiness scanner.
+#
+# It needs nothing preinstalled except a shell and curl. uv is fetched if missing, and uv
+# installs the pinned Python itself, so the tool never touches the system Python and never
+# needs a virtualenv to be activated by hand.
+#
+# Dependencies are NOT listed here on purpose: uv reads them from pyproject.toml and uv.lock,
+# so there is one source of truth and nothing to keep in sync.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$HERE"
+PYTHON_VERSION="3.13"
+
+# OpenSSL 3.5+ is optional for scanning (the group probe is native Python) but required by
+# `pqc verify`, which cross-checks results against the openssl binary.
+for prefix in /opt/homebrew/opt/openssl@3/bin /usr/local/opt/openssl@3/bin; do
+    [ -d "$prefix" ] && export PATH="$prefix:$PATH"
+done
+
+if ! command -v uv >/dev/null 2>&1; then
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+fi
+if ! command -v uv >/dev/null 2>&1; then
+    echo "Installing uv (Python toolchain manager) into ~/.local/bin ..." >&2
+    if ! curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1; then
+        echo "Could not install uv automatically." >&2
+        echo "Install it manually, then re-run:  https://docs.astral.sh/uv/getting-started/" >&2
+        exit 4
+    fi
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+fi
+
+# uv downloads the pinned interpreter if the system has none, or has an older one.
+if ! uv python find "$PYTHON_VERSION" >/dev/null 2>&1; then
+    echo "Python $PYTHON_VERSION not found. Fetching a private copy (the system Python is left alone) ..." >&2
+    uv python install "$PYTHON_VERSION" >/dev/null 2>&1 || {
+        echo "Could not install Python $PYTHON_VERSION." >&2
+        exit 4
+    }
+fi
+
+run() { uv run --quiet --project . --python "$PYTHON_VERSION" "$@"; }
+
+case "${1:-}" in
+    test)  shift; run --extra dev pytest "$@" ;;
+    lint)  shift; run --extra dev ruff check . && run --extra dev mypy pqc_scan/ ;;
+    setup)
+        echo "Preparing an isolated environment for this tool ..."
+        uv sync --project . --python "$PYTHON_VERSION" --extra dev
+        echo
+        run python -m pqc_scan.cli doctor
+        echo
+        echo "Ready. Try:  ./pqc scan example.com --operator YOU --engagement REF --confirm-authorised"
+        ;;
+    ""|-h|--help)  run python -m pqc_scan.cli --help ;;
+    *)     run python -m pqc_scan.cli "$@" ;;
+esac

@@ -1,0 +1,1 @@
+# verify: fixture captured from OpenSSL output is required for network refresh

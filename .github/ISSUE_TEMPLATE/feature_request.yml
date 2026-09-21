@@ -1,0 +1,19 @@
+name: Feature request
+description: A protocol, control, output format or workflow that is missing
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The problem, not the solution — it often has a cheaper answer.
+    validations: {required: true}
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+  - type: input
+    id: control
+    attributes:
+      label: Related ISM control, if any
+      description: A proposal tied to a control is much easier to accept.

@@ -1,0 +1,16 @@
+# Example host file. Copy it, replace the hosts with your own, and scan only what you are
+# authorised to scan.
+#
+# hostname   required
+# port       optional; the protocol is chosen from the port when `protocol` is blank
+# protocol   optional; tls, ssh, ipsec, domain, or starttls:smtp / imap / pop3 / ftp / ldap
+# owner, system_name        free text, carried into the report so a finding has a name
+# criticality               low | medium | high - multiplies the score
+# data_lifetime_years       how long the data must stay confidential; raises the score past 5
+# classification            NC | OS | P | S | TS - selects the curve rules for that level
+hostname,port,protocol,owner,system_name,criticality,data_lifetime_years,classification
+www.example.com,443,tls,Web team,Public website,medium,3,OS
+mail.example.com,587,starttls:smtp,IT,Mail submission,high,7,OS
+git.example.com,22,ssh,Platform,Source control,high,7,OS
+vpn.example.com,500,ipsec,Network,Remote access gateway,high,10,OS
+example.com,0,domain,IT,Email and web transport controls,medium,5,OS

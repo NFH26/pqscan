@@ -1,0 +1,612 @@
+# ASD ISM rule profile for pqc-scan
+#
+# Source of truth: "Ref/23. ISM - Guidelines for cryptography (September 2026).pdf"
+# (ASD Information Security Manual, Guidelines for cryptography, published September 2026).
+# Every classification below cites the control or the section that sets it.
+# Do not change a classification without quoting the ISM text that supports it.
+#
+# Classification meanings used by this tool:
+#   APPROVED                 ASD-approved and expected to remain so past 2030.
+#   TRANSITIONAL             Approved today, but the ISM says it is not approved beyond 2030,
+#                            or the ISM does not recommend the construction.
+#   NOT_APPROVED_AFTER_2030  Approved today, explicitly retired at the end of 2030.
+#   REVIEW                   Not addressed by the ISM; a human must decide.
+#   NOT_APPROVED             Not an ASD-approved algorithm, or prohibited by a control.
+
+profile:
+  name: asd_ism
+  rules_version: "2026.09.1"
+  source_document: "Ref/23. ISM - Guidelines for cryptography (September 2026).pdf"
+  source_published: "September 2026"
+  last_reviewed: "2026-09-20"
+  milestones:
+    # ISM-2073: a post-quantum cryptography transition plan is developed, implemented and maintained.
+    # ISM-1917: new cryptographic equipment, applications and libraries support ML-DSA-87,
+    #           ML-KEM-1024, SHA-384, SHA-512 and AES-256 by no later than 2030.
+    # The ISM wording is "not approved beyond 2030", so 2030 itself is still approved.
+    # transition_complete_by is therefore 1 Jan 2031, not 1 Jan 2030.
+    migration_started_by: "2028-01-01"
+    transition_complete_by: "2031-01-01"
+
+# ---------------------------------------------------------------------------
+# Key exchange / key establishment groups
+# ---------------------------------------------------------------------------
+# ISM p4, approved asymmetric algorithms: DH, ECDH, ECDSA, ML-DSA, ML-KEM, RSA.
+# "The use of ML-KEM-768 and ML-KEM-1024 are approved." (ML-KEM-512 is not.)
+# "For interoperability and maintainability reasons, ML-KEM-768 will not be approved beyond 2030."
+# ISM-1995: "When using ML-KEM for encapsulating encryption session keys (and similar keys),
+#  ML-KEM-768 or ML-KEM-1024 is used, preferably ML-KEM-1024."
+# "Taking into account projected technological advances in quantum computing,
+#  DH / ECDH will not be approved beyond 2030."
+# ISM-1996 (hybrids): "When a post-quantum traditional hybrid scheme is used, either the
+#  post-quantum cryptographic algorithm, the traditional cryptographic algorithm or both are AACAs."
+#  The surrounding text: "The use of post-quantum traditional hybrid schemes is not recommended;
+#  however, it is not prohibited." Hybrids therefore pass ISM-1996 when the ML-KEM half is
+#  approved, but they are not the recommended end state, and every hybrid below has at least one
+#  half that is not approved beyond 2030. They are classed TRANSITIONAL, never APPROVED.
+key_exchange_groups:
+  APPROVED:
+    - MLKEM1024              # ML-KEM-1024, the ISM-preferred parameter set (ISM-1917)
+  TRANSITIONAL:
+    - MLKEM768               # approved, but not beyond 2030
+    - X25519MLKEM768         # hybrid; both halves retire in 2030
+    - SecP256r1MLKEM768      # hybrid; both halves retire in 2030
+    - SecP384r1MLKEM1024     # hybrid; ML-KEM-1024 half is durable, P-384 half retires in 2030
+  NOT_APPROVED_AFTER_2030:
+    - x25519                 # ECDH; a NIST SP 800-186 curve (ISM-1446), retires end of 2030
+    - x448
+    - secp256r1              # NIST P-256 (ISM-0474; P-384 preferred)
+    - secp384r1              # NIST P-384, the ISM-preferred curve
+    - p-521                  # NIST P-521
+    - ffdhe2048              # DH, meets the ISM-0472 minimum modulus of 2048 bits
+    - ffdhe3072              # DH, the ISM-0472 preferred modulus
+    - ffdhe4096
+    - ffdhe6144
+    - ffdhe8192
+  REVIEW: []
+  NOT_APPROVED:
+    - MLKEM512               # not one of the approved ML-KEM parameter sets
+    - secp224r1              # below the ISM-0474 minimum in practice; not preferred
+    - rsa_kx                 # static RSA key transport: no forward secrecy.
+                             # ISM-1372 requires the ephemeral variant of DH or ECDH for TLS,
+                             # ISM-1453 requires Perfect Forward Secrecy.
+    - anon_dh                # ISM-1373: anonymous DH is not used for TLS connections.
+
+# Lowercase spelling as seen on the wire -> canonical name used in the lists above.
+group_aliases:
+  "x25519": "x25519"
+  "curve25519": "x25519"
+  "x448": "x448"
+  "curve448": "x448"
+  "secp256r1": "secp256r1"
+  "prime256v1": "secp256r1"
+  "p-256": "secp256r1"
+  "secp384r1": "secp384r1"
+  "prime384v1": "secp384r1"
+  "p-384": "secp384r1"
+  "secp521r1": "p-521"
+  "p-521": "p-521"
+  "secp224r1": "secp224r1"
+  "mlkem512": "MLKEM512"
+  "mlkem768": "MLKEM768"
+  "mlkem1024": "MLKEM1024"
+  "x25519mlkem768": "X25519MLKEM768"
+  "secp256r1mlkem768": "SecP256r1MLKEM768"
+  "secp384r1mlkem1024": "SecP384r1MLKEM1024"
+  "ffdhe2048": "ffdhe2048"
+  "ffdhe3072": "ffdhe3072"
+  "ffdhe4096": "ffdhe4096"
+  "ffdhe6144": "ffdhe6144"
+  "ffdhe8192": "ffdhe8192"
+  "rsa_kx": "rsa_kx"
+  "anon_dh": "anon_dh"
+
+# IANA TLS supported-groups codepoints, used by the native ClientHello probe
+# (pqc_scan/tls_probe.py). Kept here so a new group needs no code change.
+# X25519MLKEM768 (0x11ec) and MLKEM1024 (0x0202) were confirmed empirically against live
+# servers. verify: MLKEM512 (0x0200) and MLKEM768 (0x0201) are from the registry and were
+# not observed in testing; confirm before relying on a negative result for those two.
+tls_groups:
+  secp224r1: 0x0015
+  secp256r1: 0x0017
+  secp384r1: 0x0018
+  p-521: 0x0019
+  x25519: 0x001d
+  x448: 0x001e
+  ffdhe2048: 0x0100
+  ffdhe3072: 0x0101
+  ffdhe4096: 0x0102
+  ffdhe6144: 0x0103
+  ffdhe8192: 0x0104
+  MLKEM512: 0x0200
+  MLKEM768: 0x0201
+  MLKEM1024: 0x0202
+  SecP256r1MLKEM768: 0x11eb
+  X25519MLKEM768: 0x11ec
+  SecP384r1MLKEM1024: 0x11ed
+
+# Real-world client profile for default negotiation, not an ISM classification.
+# Mirrors the OpenSSL 3.5 default offer order; capability enumeration still probes tls_groups.
+default_client_groups:
+  - X25519MLKEM768
+  - x25519
+  - secp256r1
+  - x448
+  - secp384r1
+  - p-521
+  - ffdhe2048
+  - ffdhe3072
+
+# Reported per host as pq_readiness, derived from the best group the host will negotiate.
+pq_readiness:
+  pure_pq_approved: [APPROVED]
+  hybrid_transitional: [TRANSITIONAL]
+  classical_only: [NOT_APPROVED_AFTER_2030, NOT_APPROVED, REVIEW]
+
+# ---------------------------------------------------------------------------
+# Public key algorithms (certificate subject public keys)
+# ---------------------------------------------------------------------------
+# Approved asymmetric algorithms are DH, ECDH, ECDSA, ML-DSA, ML-KEM, RSA (ISM p4).
+# Anything absent from that list is not approved, however common it is in practice.
+public_key_algorithms:
+  ML-DSA: APPROVED                      # parameter set decides; see signature_patterns
+  RSA: NOT_APPROVED_AFTER_2030          # ISM-0476, retires end of 2030
+  ECDSA: NOT_APPROVED_AFTER_2030        # ISM-0475, retires end of 2030
+  DH: NOT_APPROVED_AFTER_2030           # ISM-0472, retires end of 2030
+  Ed25519: NOT_APPROVED                 # EdDSA is not in the ISM approved algorithm list
+  Ed448: NOT_APPROVED
+  DSA: NOT_APPROVED                     # plain DSA is not in the ISM approved algorithm list
+  SLH-DSA: NOT_APPROVED                 # not in the ISM approved algorithm list
+  Unknown: REVIEW
+
+# Minimum and preferred key sizes. ISM-0472/0474/0475/0476 and the S/TS variants.
+key_sizes:
+  RSA:
+    minimum_bits: 2048                  # ISM-0476 (NC, OS, P)
+    preferred_bits: 3072                # ISM-0476 preference; ISM-1765 minimum for S and TS
+  ECDSA:
+    minimum_bits: 224                   # ISM-0475 (NC, OS, P)
+    preferred_curve: secp384r1          # ISM-0475 "preferably the P-384 curve"
+  ECDH:
+    minimum_bits: 224                   # ISM-0474 (NC, OS, P)
+    preferred_curve: secp384r1          # ISM-0474 "preferably the NIST P-384 curve"
+  DH:
+    minimum_bits: 2048                  # ISM-0472 (NC, OS, P)
+    preferred_bits: 3072                # ISM-0472 preference; ISM-1759 minimum for S and TS
+
+# Curve restrictions that apply only at higher data classifications.
+# ISM-1446: when using elliptic curve cryptography, a suitable curve from NIST SP 800-186 is used.
+classification_curve_rules:
+  S:                                    # ISM-1761 (ECDH), ISM-1763 (ECDSA)
+    allowed_curves: [secp256r1, secp384r1, p-521]
+    preferred_curve: secp384r1
+  TS:                                   # ISM-1762 (ECDH), ISM-1764 (ECDSA)
+    allowed_curves: [secp384r1, p-521]
+    preferred_curve: secp384r1
+
+# ---------------------------------------------------------------------------
+# Hashing
+# ---------------------------------------------------------------------------
+# "Only SHA-2 hashing algorithms are approved for general-purpose use. Approval of SHA-3 and
+#  extendable-output functions ... is restricted to use within internal steps of ML-DSA and ML-KEM."
+# "For interoperability and maintainability reasons, SHA-224 and SHA-256 will not be approved
+#  beyond 2030."
+# ISM-1766: at least 224 bits, preferably SHA-384 or SHA-512.
+# ISM-1374: SHA-2-based certificates are used for TLS connections.
+hashes:
+  APPROVED:
+    - sha384
+    - sha512
+  NOT_APPROVED_AFTER_2030:
+    - sha224
+    - sha256
+  NOT_APPROVED:
+    - sha1
+    - md5
+    - sha3-256                          # SHA-3 is approved only inside ML-DSA and ML-KEM
+    - sha3-384
+    - sha3-512
+    - shake128
+    - shake256
+
+# ---------------------------------------------------------------------------
+# Certificate signature algorithms
+# ---------------------------------------------------------------------------
+# Patterns are matched in order against the lowercased signature algorithm name, first match wins.
+# "The ML-DSA standard contains three different parameter sets: ML-DSA-44, ML-DSA-65 and
+#  ML-DSA-87. The use of ML-DSA-65 and ML-DSA-87 are approved."
+# "For interoperability and maintainability reasons, ML-DSA-65 will not be approved beyond 2030."
+# ISM-1991: "When using ML-DSA for digital signatures, ML-DSA-65 or ML-DSA-87 is used,
+#  preferably ML-DSA-87."
+signature_patterns:
+  - pattern: "ml-?dsa-?87"
+    classification: APPROVED             # ISM-preferred signature algorithm (ISM-1917)
+  - pattern: "ml-?dsa-?65"
+    classification: TRANSITIONAL         # approved, but not beyond 2030
+  - pattern: "ml-?dsa-?44"
+    classification: NOT_APPROVED         # not an approved ML-DSA parameter set
+  - pattern: "ml-?dsa"
+    classification: REVIEW               # ML-DSA with an unidentified parameter set
+  - pattern: "slh-?dsa|sphincs"
+    classification: NOT_APPROVED         # SLH-DSA is not in the ISM approved algorithm list
+  - pattern: "ecdsa-with-sha1"
+    classification: NOT_APPROVED         # SHA-1 is not approved
+  - pattern: "ecdsa-with-sha224"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "ecdsa-with-sha256"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "ecdsa-with-sha384"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "ecdsa-with-sha512"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "ecdsa"
+    classification: REVIEW               # ECDSA with an unrecognised hash, e.g. SHA-3
+  - pattern: "md5withrsa|md5-?with-?rsa"
+    classification: NOT_APPROVED
+  - pattern: "sha1withrsa|sha1-?with-?rsa"
+    classification: NOT_APPROVED
+  - pattern: "sha224withrsa"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "sha256withrsa"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "sha384withrsa"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "sha512withrsa"
+    classification: NOT_APPROVED_AFTER_2030
+  - pattern: "rsassa-?pss|rsapss"
+    classification: NOT_APPROVED_AFTER_2030   # RSA-PSS; RSA retires end of 2030 (ISM-0476)
+  - pattern: "ed25519|ed448|eddsa"
+    classification: NOT_APPROVED         # EdDSA is not in the ISM approved algorithm list
+  # Negative lookbehind so this does not swallow "ecdsa-with-..." above.
+  - pattern: "(?<![a-z-])dsa[-_]with"
+    classification: NOT_APPROVED         # plain DSA is not in the ISM approved algorithm list
+  - pattern: "sha3-|shake"
+    classification: NOT_APPROVED         # SHA-3 is approved only inside ML-DSA and ML-KEM
+
+# ---------------------------------------------------------------------------
+# TLS protocol requirements
+# ---------------------------------------------------------------------------
+# ISM-1139: "Only the latest version of TLS is used for TLS connections." The ISM states that
+#  "Secure Sockets Layer and TLS version 1.2 and earlier are no longer considered suitable for
+#  use as an AACP", so TLS 1.2 is a protocol finding, not merely a weaker score.
+tls:
+  approved_versions: [TLSv1.3]                      # ISM-1139
+  required_cipher_family: AES-GCM                   # ISM-1369
+  require_ephemeral_key_exchange: true              # ISM-1372
+  require_perfect_forward_secrecy: true             # ISM-1453
+  require_sha2_certificates: true                   # ISM-1374
+  disable_compression: true                         # ISM-1553
+  # "For interoperability and maintainability reasons, AES-128 and AES-192 will not be
+  #  approved beyond 2030." ISM-1917 requires AES-256 support by 2030.
+  symmetric:
+    APPROVED: [aes256]
+    NOT_APPROVED_AFTER_2030: [aes128, aes192]
+    # Quote every token. Bare `null` parses as a YAML null, which silently removed the
+    # NULL-cipher check and let an unencrypted endpoint score better than a 3DES one.
+    NOT_APPROVED: ["3des", "rc4", "null", "chacha20", "des", "export", "rc2", "idea", "seed"]
+    # No encryption at all. Scored separately because "weak cipher" and "no cipher" are not
+    # the same finding: ISM-0469 requires an approved protocol for data in transit.
+    NO_ENCRYPTION: ["null", "export"]
+
+# ---------------------------------------------------------------------------
+# Secure Shell
+# ---------------------------------------------------------------------------
+# The ISM's Secure Shell section says that "security controls for using AACAs and AACPs in the
+# 'Cryptographic algorithms' and 'Cryptographic protocols' sections of these guidelines will
+# also need to be consulted", so the classifications above govern SSH too.
+# ISM-1506: "The use of SSH version 1 is disabled for SSH connections."
+ssh:
+  approved_protocol_versions:
+    - "2.0"                             # ISM-1506
+
+  # Entries that appear in a KEXINIT name-list but are signalling, not algorithms. Classifying
+  # them would fill the report with meaningless REVIEW rows.
+  ignore:
+    - ext-info-s
+    - ext-info-c
+    - kex-strict-s-v00@openssh.com
+    - kex-strict-c-v00@openssh.com
+
+  key_exchange:
+    APPROVED: []                        # no pure ML-KEM key exchange is standardised for SSH yet
+    TRANSITIONAL:
+      # Every SSH post-quantum key exchange defined so far is a hybrid. ISM-1996 is satisfied
+      # because the traditional half is an AACA, but that half (X25519, P-256, P-384) is not
+      # approved beyond 2030, so none of these can be APPROVED today.
+      - mlkem768x25519-sha256           # ML-KEM-768 hybrid; approved now, not beyond 2030
+      - mlkem768nistp256-sha256         # ML-KEM-768 + P-256 (draft-kampanakis-curdle-ssh-pq-ke)
+      - mlkem1024nistp384-sha384        # ML-KEM-1024 + P-384; ISM-1995 prefers ML-KEM-1024
+    NOT_APPROVED_AFTER_2030:
+      - curve25519-sha256
+      - curve25519-sha256@libssh.org
+      - ecdh-sha2-nistp256
+      - ecdh-sha2-nistp384
+      - ecdh-sha2-nistp521
+      - diffie-hellman-group14-sha256
+      - diffie-hellman-group16-sha512
+      - diffie-hellman-group18-sha512
+      - diffie-hellman-group-exchange-sha256
+      - diffie-hellman-group15-sha512   # 3072-bit MODP, meets ISM-1759's minimum modulus
+      # verify: sntrup761 is Streamlined NTRU Prime, NOT ML-KEM, so the post-quantum half is
+      # not an ASD-approved algorithm. The hybrid still satisfies ISM-1996 because its X25519
+      # half is an AACA, but that half is not approved beyond 2030. It is quantum-resistant in
+      # practice; it is not ISM-approved. Confirm this reading before reporting it to a client.
+      - sntrup761x25519-sha512
+      - sntrup761x25519-sha512@openssh.com
+    REVIEW: []
+    NOT_APPROVED:
+      - diffie-hellman-group1-sha1      # SHA-1, and a 1024-bit group
+      - diffie-hellman-group14-sha1
+      - diffie-hellman-group-exchange-sha1
+      - rsa1024-sha1
+      - rsa2048-sha256                  # RSA key transport: no forward secrecy (ISM-1453)
+      - ecdh-sha2-1.3.132.0.10          # secp256k1, not a NIST SP 800-186 curve (ISM-1446)
+
+  host_keys:
+    # ISM-1991: ML-DSA-65 or ML-DSA-87, preferably ML-DSA-87. Servers have started advertising
+    # ML-DSA host keys under several spellings while the draft settles, so match them all.
+    APPROVED:
+      - ssh-mldsa65
+      - ssh-mldsa-65
+      - mldsa-65
+      - ssh-mldsa87
+      - ssh-mldsa-87
+      - mldsa-87
+      - ssh-mldsa87-p384                # ML-DSA-87 + P-384 composite
+    TRANSITIONAL:
+      - ssh-mldsa44-ed25519             # composite whose classical half is Ed25519
+    NOT_APPROVED_AFTER_2030:
+      - rsa-sha2-256                    # RSA, retires end of 2030 (ISM-0476)
+      - rsa-sha2-512
+      - ecdsa-sha2-nistp256             # ECDSA, retires end of 2030 (ISM-0475)
+      - ecdsa-sha2-nistp384
+      - ecdsa-sha2-nistp521
+    REVIEW: []
+    NOT_APPROVED:
+      - ssh-rsa                         # RSA with a SHA-1 signature
+      - ssh-dss                         # plain DSA is not in the ISM approved algorithm list
+      # verify: EdDSA is absent from the ISM's approved asymmetric list (DH, ECDH, ECDSA,
+      # ML-DSA, ML-KEM, RSA). A strict reading makes it unapproved even though it is modern
+      # and widely used. Confirm before reporting.
+      - ssh-ed25519
+      - ssh-ed448
+      # ISM-1991 approves only ML-DSA-65 and ML-DSA-87. ML-DSA-44 is a real ML-DSA parameter
+      # set but is not on that list, so it cannot be reported as approved.
+      - mldsa-44
+      - ssh-mldsa-44
+      - ssh-mldsa44
+
+  ciphers:
+    # "The only approved symmetric cryptographic algorithm is Advanced Encryption Standard."
+    APPROVED:
+      - aes256-gcm@openssh.com
+      - aes256-ctr
+    TRANSITIONAL: []
+    NOT_APPROVED_AFTER_2030:
+      - aes128-gcm@openssh.com          # AES-128 and AES-192 are not approved beyond 2030
+      - aes128-ctr
+      - aes192-ctr
+    REVIEW:
+      - aes256-cbc                      # verify: AES, but CBC; the ISM names no SSH mode control
+      - aes128-cbc
+    NOT_APPROVED:
+      - chacha20-poly1305@openssh.com   # not AES, so not an approved symmetric algorithm
+      - 3des-cbc
+      - arcfour
+      - arcfour128
+      - arcfour256
+      - twofish128-ctr                  # not AES, so not an approved symmetric algorithm
+      - twofish192-ctr
+      - twofish256-ctr
+      - twofish-cbc
+      - blowfish-cbc
+      - cast128-cbc
+      - none
+
+  macs:
+    APPROVED:
+      - hmac-sha2-512
+      - hmac-sha2-512-etm@openssh.com
+    TRANSITIONAL: []
+    NOT_APPROVED_AFTER_2030:
+      - hmac-sha2-256                   # SHA-256 is not approved beyond 2030
+      - hmac-sha2-256-etm@openssh.com
+    REVIEW:
+      - umac-128@openssh.com            # verify: AES-based, but the ISM names no UMAC control
+      - umac-128-etm@openssh.com
+    NOT_APPROVED:
+      - hmac-sha1
+      - hmac-sha1-96
+      - hmac-sha1-etm@openssh.com
+      - hmac-sha1-96-etm@openssh.com
+      - hmac-md5
+      - hmac-md5-96
+      - umac-64@openssh.com
+      - umac-64-etm@openssh.com
+      - none
+
+# ---------------------------------------------------------------------------
+# Remediation
+# ---------------------------------------------------------------------------
+# What to do about each finding. Keyed by the start of the finding name, so a finding that
+# carries its control reference or a list of algorithms still matches. Data, not code: adding
+# advice for a new finding is a YAML edit.
+#
+# priority: 1 highest. Used to order the action list, so the most useful change is read first.
+# effort:   config | certificate | vendor | design  - what kind of work it implies.
+remediation:
+  readiness:
+    classical_only:
+      priority: 1
+      effort: config
+      action: "Enable a post-quantum key exchange. On TLS 1.3 add X25519MLKEM768; on SSH add mlkem768x25519-sha256."
+      why: "No post-quantum key exchange means traffic captured today can be decrypted once a CRQC exists."
+    hybrid_transitional:
+      priority: 3
+      effort: design
+      action: "Plan the move to pure ML-KEM-1024. Keep the hybrid running until your clients support it."
+      why: "ISM-1995 prefers ML-KEM-1024, and both halves of a 768 hybrid stop being approved after 2030."
+    pure_pq_approved:
+      priority: 5
+      effort: design
+      action: "Key exchange meets the profile. Certificates are the remaining work."
+      why: "ISM-1917 also requires ML-DSA-87 support by 2030; no public CA issues ML-DSA certificates yet."
+  findings:
+    tls_version_not_approved:
+      priority: 1
+      effort: config
+      action: "Enable TLS 1.3 and disable TLS 1.2 and earlier."
+      why: "ISM-1139 requires only the latest version of TLS. TLS 1.2 also cannot carry a post-quantum key exchange."
+    obsolete_tls:
+      priority: 1
+      effort: config
+      action: "Disable TLS 1.0 and 1.1 immediately and enable TLS 1.3."
+      why: "These versions are long superseded and cannot be assessed against the profile."
+    unapproved_algorithm_offered:
+      priority: 1
+      effort: config
+      action: "Remove the listed algorithms from the service configuration. On OpenSSH set KexAlgorithms, HostKeyAlgorithms, Ciphers and MACs explicitly rather than relying on defaults."
+      why: "ISM-0471: only approved algorithms are used. A server that offers one will use it when a client asks."
+    no_forward_secrecy:
+      priority: 1
+      effort: config
+      action: "Use ephemeral ECDHE key exchange."
+      why: "ISM-1372 and ISM-1453 require ephemeral key establishment and Perfect Forward Secrecy."
+    cipher_not_aes_gcm:
+      priority: 2
+      effort: config
+      action: "Restrict the cipher list to AES-GCM."
+      why: "ISM-1369 requires AES-GCM for TLS connections."
+    symmetric_not_approved_after_2030:
+      priority: 3
+      effort: config
+      action: "Prefer AES-256 over AES-128 in the cipher order."
+      why: "AES-128 and AES-192 are not approved beyond 2030; ISM-1917 requires AES-256 support by then."
+    key_size_below_minimum:
+      priority: 1
+      effort: certificate
+      action: "Reissue this certificate with a key at or above the ISM minimum."
+      why: "ISM-0472, ISM-0474, ISM-0475 and ISM-0476 set minimum key sizes."
+    key_size_below_preferred:
+      priority: 4
+      effort: certificate
+      action: "At next renewal, move RSA keys to 3072 bits."
+      why: "ISM-0476 prefers 3072 bits. This is a preference, not a breach."
+    curve_below_preferred:
+      priority: 4
+      effort: certificate
+      action: "At next renewal, move to the P-384 curve."
+      why: "ISM-0474 and ISM-0475 prefer P-384. This is a preference, not a breach."
+    classification_curve_violation:
+      priority: 1
+      effort: certificate
+      action: "Reissue using a curve permitted at this data classification."
+      why: "ISM-1761 to ISM-1764 restrict curves at SECRET and TOP SECRET."
+    capability_exceeds_default_negotiation:
+      priority: 2
+      effort: config
+      action: "Reorder the server's group preference so the stronger group is negotiated by default."
+      why: "Supporting a stronger group does not help if the server does not choose it for ordinary clients."
+    expired:
+      priority: 1
+      effort: certificate
+      action: "Replace the expired certificate."
+      why: "Clients will refuse the connection or users will be trained to click through warnings."
+    not_yet_valid:
+      priority: 1
+      effort: certificate
+      action: "Check the server clock and the certificate validity dates."
+      why: "A certificate that is not yet valid fails validation."
+    hostname_mismatch:
+      priority: 1
+      effort: certificate
+      action: "Reissue with the correct subject alternative names, or serve the certificate on the right host."
+      why: "Clients cannot confirm they reached the intended server."
+    self_signed:
+      priority: 2
+      effort: certificate
+      action: "Replace with a certificate from a CA the relying clients trust."
+      why: "A self-signed certificate provides no third-party identity assurance."
+    untrusted_root:
+      priority: 2
+      effort: certificate
+      action: "Issue from a publicly trusted CA, or distribute the private root to every relying client."
+      why: "The chain terminates in a root this scanner does not trust."
+    incomplete_chain:
+      priority: 2
+      effort: config
+      action: "Configure the server to send the full certificate chain including intermediates."
+      why: "Clients that cannot fetch the missing intermediate will fail validation."
+    incomplete_chain_or_unknown_issuer:
+      priority: 2
+      effort: config
+      action: "Send the full chain, and confirm the issuing CA is trusted by the relying clients."
+      why: "Validation stopped because an issuer could not be found."
+    ssh_version_not_approved:
+      priority: 1
+      effort: config
+      action: "Disable SSH version 1 (Protocol 2 in sshd_config)."
+      why: "ISM-1506 requires SSH version 1 to be disabled."
+    NOT_APPROVED_AFTER_2030:
+      priority: 3
+      effort: vendor
+      action: "Track your CA's post-quantum roadmap. RSA and ECDSA certificates are approved now but retire at the end of 2030."
+      why: "ISM-0475 and ISM-0476. No public CA issues ML-DSA certificates yet, so this is a watching brief."
+    NOT_APPROVED:
+      priority: 1
+      effort: certificate
+      action: "Replace this certificate or host key: the algorithm is not approved at all."
+      why: "SHA-1 signatures, DSA and EdDSA are absent from the ISM's approved algorithm list."
+
+# ---------------------------------------------------------------------------
+# Internet Protocol Security
+# ---------------------------------------------------------------------------
+# Nine controls, of which five are answerable from an unauthenticated IKE_SA_INIT. The other
+# four are recorded in `not_observable` so the report can say why they are absent rather than
+# leaving a silent gap: mode (ISM-0494) and ESP/AH (ISM-0496) are settled in IKE_AUTH, SA
+# lifetime (ISM-0498) is local policy IKEv2 does not carry, and Child SA PFS (ISM-1000)
+# appears only in CREATE_CHILD_SA.
+ipsec:
+  approved_versions: [2]                # ISM-1233: IKE version 2 is used
+
+  not_observable:
+    ISM-0494: "Tunnel vs transport mode is negotiated in IKE_AUTH, which requires credentials."
+    ISM-0496: "ESP vs AH is negotiated in IKE_AUTH, which requires credentials."
+    ISM-0498: "IKEv2 does not carry the SA lifetime in the SA payload; it is local policy."
+    ISM-1000: "Child SA Perfect Forward Secrecy appears only in CREATE_CHILD_SA."
+
+  # ISM-1771: "AES is used for encrypting IPsec connections, preferably ENCR_AES_GCM_16."
+  encryption:
+    APPROVED: [ENCR_AES_GCM_16]
+    TRANSITIONAL: [ENCR_AES_GCM_12, ENCR_AES_GCM_8, ENCR_AES_CCM_16]
+    NOT_APPROVED_AFTER_2030: [ENCR_AES_CBC, ENCR_AES_CTR, ENCR_AES_CCM_12, ENCR_AES_CCM_8]
+    REVIEW: []
+    NOT_APPROVED: [ENCR_3DES, ENCR_NULL, ENCR_BLOWFISH, ENCR_CAST, ENCR_CAMELLIA_CBC, ENCR_CHACHA20_POLY1305]
+
+  # ISM-1772: "PRF_HMAC_SHA2_256, PRF_HMAC_SHA2_384 or PRF_HMAC_SHA2_512 ... preferably
+  # PRF_HMAC_SHA2_512."
+  prf:
+    APPROVED: [PRF_HMAC_SHA2_512]
+    TRANSITIONAL: [PRF_HMAC_SHA2_384]
+    NOT_APPROVED_AFTER_2030: [PRF_HMAC_SHA2_256]
+    REVIEW: []
+    NOT_APPROVED: [PRF_HMAC_SHA1, PRF_HMAC_MD5, PRF_AES128_XCBC]
+
+  # ISM-0998: "AUTH_HMAC_SHA2_256_128, AUTH_HMAC_SHA2_384_192, AUTH_HMAC_SHA2_512_256 or
+  # NONE (only with AES-GCM) is used ... preferably NONE." NONE is only correct alongside an
+  # AEAD cipher, which the scorer checks rather than trusting the name alone.
+  integrity:
+    APPROVED: [NONE, AUTH_HMAC_SHA2_512_256]
+    TRANSITIONAL: [AUTH_HMAC_SHA2_384_192]
+    NOT_APPROVED_AFTER_2030: [AUTH_HMAC_SHA2_256_128]
+    REVIEW: []
+    NOT_APPROVED: [AUTH_HMAC_SHA1_96, AUTH_HMAC_MD5_96, AUTH_AES_XCBC_96]
+
+  # ISM-0999: "DH or ECDH is used for key establishment ... preferably 384-bit random ECP
+  # group, 3072-bit MODP Group or 4096-bit MODP Group."
+  dh_groups:
+    APPROVED: [ML_KEM_1024]
+    TRANSITIONAL: [ECP_384, MODP_3072, MODP_4096, ML_KEM_768, ML_KEM_512]
+    NOT_APPROVED_AFTER_2030: [ECP_256, ECP_521, MODP_2048, MODP_6144, MODP_8192, CURVE25519, CURVE448]
+    REVIEW: []
+    NOT_APPROVED: [MODP_768, MODP_1024, MODP_1536]

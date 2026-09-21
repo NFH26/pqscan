@@ -1,0 +1,42 @@
+name: Bug report
+description: Something measured wrong, crashed, or reported a finding you believe is incorrect
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong measurement is the most serious kind of bug this tool can have, so thank you
+        for reporting it. If you believe a finding is incorrect, `--explain` output is the
+        single most useful thing you can include.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did the tool report, and what did you expect?
+    validations: {required: true}
+  - type: textarea
+    id: command
+    attributes:
+      label: The command and its output
+      description: Include `--explain` if a score or finding looks wrong. Redact hostnames if they are not public.
+      render: shell
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `pqc doctor` (first two lines are enough)
+    validations: {required: true}
+  - type: input
+    id: platform
+    attributes:
+      label: OS and Python
+      placeholder: macOS 15.2, Python 3.13.1
+    validations: {required: true}
+  - type: checkboxes
+    id: selftest
+    attributes:
+      label: Before submitting
+      options:
+        - label: I ran `pqc selftest --offline` and included the result if it failed
+        - label: The endpoint is one I am authorised to scan, or is a public test endpoint

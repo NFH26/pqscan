@@ -1,0 +1,41 @@
+hostname,port,protocol,system_name,owner,criticality,classification,data_lifetime_years
+pq.cloudflareresearch.com,443,tls,Cloudflare PQ research endpoint,Testbed,low,OS,5
+cloudflare.com,443,tls,Cloudflare edge (X25519MLKEM768),Testbed,low,OS,5
+www.google.com,443,tls,Google edge (hybrid PQ),Testbed,low,OS,5
+tls13.1d.pw,443,tls,TLS 1.3 only,Testbed,low,OS,5
+www.ato.gov.au,443,tls,Australian Government reference,Testbed,low,OS,10
+my.gov.au,443,tls,Australian Government reference,Testbed,low,OS,10
+github.com,22,ssh,OpenSSH sntrup761 hybrid,Testbed,low,OS,5
+ssh.github.com,443,,SSH on 443 (auto-detect check),Testbed,low,OS,5
+gitlab.com,22,ssh,OpenSSH,Testbed,low,OS,5
+bitbucket.org,22,ssh,OpenSSH,Testbed,low,OS,5
+sdf.org,22,ssh,Public shell host,Testbed,low,OS,5
+smtp.gmail.com,587,starttls:smtp,Gmail submission STARTTLS,Testbed,low,OS,5
+smtp.office365.com,587,starttls:smtp,Microsoft 365 submission,Testbed,low,OS,5
+smtp.gmail.com,465,tls,Gmail implicit TLS,Testbed,low,OS,5
+imap.gmail.com,993,tls,Gmail IMAPS,Testbed,low,OS,5
+outlook.office365.com,993,tls,Microsoft 365 IMAPS,Testbed,low,OS,5
+pop.gmail.com,995,tls,Gmail POP3S,Testbed,low,OS,5
+ftp.gnu.org,21,starttls:ftp,GNU FTP STARTTLS,Testbed,low,OS,3
+test.rebex.net,21,starttls:ftp,Rebex FTPS test server,Testbed,low,OS,3
+test.rebex.net,22,ssh,Rebex SSH test server,Testbed,low,OS,3
+expired.badssl.com,443,tls,Expired certificate,Testbed,low,OS,1
+self-signed.badssl.com,443,tls,Self-signed certificate,Testbed,low,OS,1
+untrusted-root.badssl.com,443,tls,Untrusted root,Testbed,low,OS,1
+wrong.host.badssl.com,443,tls,Hostname mismatch,Testbed,low,OS,1
+incomplete-chain.badssl.com,443,tls,Incomplete chain,Testbed,low,OS,1
+3des.badssl.com,443,tls,3DES only (raw probe path),Testbed,low,OS,1
+rc4.badssl.com,443,tls,RC4 only (raw probe path),Testbed,low,OS,1
+null.badssl.com,443,tls,NULL cipher (raw probe path),Testbed,low,OS,1
+dh1024.badssl.com,443,tls,1024-bit DH parameters,Testbed,low,OS,1
+rsa8192.badssl.com,443,tls,8192-bit RSA key,Testbed,low,OS,1
+sha1-intermediate.badssl.com,443,tls,SHA-1 intermediate,Testbed,low,OS,1
+ecc256.badssl.com,443,tls,P-256 certificate,Testbed,low,OS,1
+ecc384.badssl.com,443,tls,P-384 certificate,Testbed,low,OS,1
+tls-v1-2.badssl.com,1012,tls,TLS 1.2 maximum,Testbed,low,OS,1
+vpn.strongswan.org,500,ipsec,strongSwan demo IKEv2 gateway,Testbed,low,OS,5
+one.one.one.one,853,tls,Cloudflare DNS over TLS (ISM-2017),Testbed,low,OS,3
+dns.google,853,tls,Google DNS over TLS (ISM-2017),Testbed,low,OS,3
+ato.gov.au,0,domain,ATO email and web controls,Testbed,medium,OS,5
+my.gov.au,0,domain,myGov email and web controls,Testbed,medium,OS,5
+gmail.com,0,domain,Gmail email controls,Testbed,low,OS,5
