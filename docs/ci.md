@@ -24,7 +24,8 @@ pqc scan --input hosts.csv -y --fail-on-class NOT_APPROVED
 pqc scan --input hosts.csv -y --require-hybrid-kex
 ```
 
-`--require-hybrid-kex` exempts `domain` rows, which have no key exchange to judge, and endpoints
+Despite the name, `--require-hybrid-kex` gates on a post-quantum key exchange of any kind,
+hybrid or pure. It exempts `domain` rows, which have no key exchange to judge, and endpoints
 that could not be measured — an unreachable host must not pass a gate, and must not fail one
 either. Use `--fail-on-score` if you want unreachable hosts to be loud.
 

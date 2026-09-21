@@ -28,7 +28,7 @@ a **malicious or compromised server attacking the scanner**:
   non-compliant endpoint scoring as compliant. In a compliance tool this is a security issue,
   not a correctness nit.
 
-All five parsers are fuzzed and there is a deliberately hostile server in the test suite, but
+All five parsers — TLS, SSH, IKEv2, DNS and X.509 certificates — are fuzzed and there is a deliberately hostile server in the test suite, but
 neither is proof of absence.
 
 ## What is not a vulnerability

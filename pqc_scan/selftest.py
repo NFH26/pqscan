@@ -110,67 +110,6 @@ def check(case: dict[str, Any], finding: HostFinding) -> CaseResult:
     return CaseResult(case["name"], endpoint, PASS)
 
 
-async def run_cases(
-    cases: list[dict[str, Any]], timeout: float = 10.0, concurrency: int = 4
-) -> list[CaseResult]:
-    """Run every case, then re-run any failure once, alone and with a longer timeout.
-
-    A live test that reports a different answer each run teaches you to ignore it. Most
-    first-round failures here are the network in between - a burst of connections that looked
-    like a scan to a rate limiter, or a slow path that overran the timeout - and those are not
-    scanner defects. A failure that survives an unhurried, uncontended retry is a real one.
-    """
-    engine = RuleEngine()
-    scorer = Scorer()
-    context = ProbeContext(engine=engine, timeout=timeout)
-    semaphore = asyncio.Semaphore(concurrency)
-    # Several cases deliberately target the same host (github.com:22 and ssh.github.com:443,
-    # three badssl subdomains). Probing them at once looks like a burst to the operator and
-    # gets throttled, which showed up as intermittent failures that were really rate limits.
-    host_locks: dict[str, asyncio.Lock] = {}
-
-    async def one(case: dict[str, Any], patience: float | None = None) -> CaseResult:
-        target = Target(
-            hostname=case["host"],
-            port=case.get("port", 443),
-            protocol=case.get("protocol"),
-            criticality="medium",
-        )
-        domain = ".".join(case["host"].rsplit(".", 2)[-2:])
-        lock = host_locks.setdefault(domain, asyncio.Lock())
-        attempt = context if patience is None else ProbeContext(
-            engine=engine, timeout=patience, certificates=context.certificates
-        )
-        async with semaphore, lock:
-            try:
-                finding = await run_probe(target, attempt)
-            except Exception as error:
-                # An exception escaping a probe is always a scanner defect: every expected
-                # failure mode is supposed to come back as a finding.
-                return CaseResult(
-                    case["name"], f"{case['host']}:{case['port']}", FAIL,
-                    f"probe raised {type(error).__name__}: {error}",
-                )
-        scorer.calculate_scores(finding, context.certificates, engine)
-        scorer.assign_readiness_band(finding)
-        return check(case, finding)
-
-    results = list(await asyncio.gather(*(one(case) for case in cases)))
-
-    suspects = [index for index, result in enumerate(results) if result.status == FAIL]
-    if not suspects:
-        return results
-    # Serially, with room to breathe: nothing else is competing for the network now, so a
-    # failure that repeats here is the tool, not the conditions.
-    for index in suspects:
-        await asyncio.sleep(1.0)
-        retry = await one(cases[index], patience=timeout * 2.5)
-        if retry.status == PASS:
-            retry.detail = "passed on retry (first attempt hit a transient network failure)"
-        results[index] = retry
-    return results
-
-
 async def run_cases_with_findings(
     cases: list[dict[str, Any]], timeout: float = 10.0, concurrency: int = 4
 ) -> tuple[list[CaseResult], list[HostFinding], dict[str, Any]]:

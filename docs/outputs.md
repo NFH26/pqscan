@@ -21,7 +21,7 @@ compliance report is evidence, and evidence that a later run silently replaced i
 ## HTML
 
 Self-contained: no external requests, so opening a report does not tell anyone that you read it,
-and it works from a USB stick in a SCIF. Renders in light and dark. Carries the full remediation
+so it opens safely on an isolated network. Renders in light and dark. Carries the full remediation
 advice per host, the certificate inventory, and the scan's provenance — operator, engagement,
 timestamp, rule version, and which probe produced each result.
 
@@ -62,8 +62,7 @@ says so in `metadata.properties`.
 
 ## SARIF
 
-[SARIF 2.1.0](https://sarifweb.azurewebsites.net/), so findings appear natively in CI and code
--scanning dashboards. Each distinct finding becomes a SARIF rule carrying its ISM control
+[SARIF 2.1.0](https://sarifweb.azurewebsites.net/), so findings appear natively in CI and code-scanning dashboards. Each distinct finding becomes a SARIF rule carrying its ISM control
 number, and severity maps from the confidentiality score: `error` at 75 and above, `warning` at
 40, otherwise `note`.
 

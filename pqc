@@ -50,9 +50,8 @@ case "${1:-}" in
         echo "Preparing an isolated environment for this tool ..."
         uv sync --project . --python "$PYTHON_VERSION" --extra dev
         echo
+        # doctor ends with the "Ready. Try:" line, so the launcher does not repeat it.
         run python -m pqc_scan.cli doctor
-        echo
-        echo "Ready. Try:  ./pqc scan example.com --operator YOU --engagement REF --confirm-authorised"
         ;;
     ""|-h|--help)  run python -m pqc_scan.cli --help ;;
     *)     run python -m pqc_scan.cli "$@" ;;

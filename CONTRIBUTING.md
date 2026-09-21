@@ -18,7 +18,7 @@ Python 3.11 or newer. No other system dependency.
 ## Before you open a pull request
 
 ```bash
-pqc test                  # 176 unit tests, no network, about ten seconds
+pqc test                  # unit tests, no network, about ten seconds
 pqc selftest --offline    # rules, scoring invariants, output formats
 pqc selftest              # live, every protocol (needs network)
 ./pqc lint
@@ -26,23 +26,14 @@ pqc selftest              # live, every protocol (needs network)
 
 ## The rules this project is strict about
 
-Each of these came from a real bug, and each has a test pinning it.
-
-**A measurement failure is a bug, not a result.** If the tool reports "unknown", the instrument
-failed until proven otherwise. Never let a probe give up quietly.
+Each came from a real bug and each has a test pinning it. The full list, with the defect behind
+each rule, is in [docs/architecture.md](docs/architecture.md#design-rules-that-are-load-bearing).
+Read it before your first change. The two that reviewers raise most often:
 
 **Unmeasured is never compliant.** An endpoint that could not be reached gets no score, no band
-and no pass. It must never satisfy a policy gate.
+and no pass, and must never satisfy a policy gate.
 
-**Absence of evidence is not evidence of absence.** A failed DNS lookup is not "this domain
-publishes no DMARC". Record whether an observation completed, and report a control you could not
-observe as *not observed* rather than as a breach.
-
-**Name the exceptions you expect.** A bare `except Exception` once swallowed a `NameError` from
-a missing import and reported it as a DNS failure — the tool looked like it was working and was
-not. Catch what you mean.
-
-**Rules are data.** Classifications live in `pqc_scan/rules/*.yaml` with the ISM control that
+**Rules are data.** Classifications live in `pqc_scan/rules/*.yaml` next to the ISM control that
 sets them. A classification change is a YAML edit and should cite its control.
 
 **Comments explain why.** The code shows what it does. A comment earns its place by explaining

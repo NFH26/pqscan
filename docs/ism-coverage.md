@@ -43,6 +43,10 @@ Answered from one unauthenticated, plaintext `IKE_SA_INIT` exchange.
 | ISM-1772 | PRF_HMAC_SHA2_256/384/512, preferably 512 | Chosen PRF transform |
 | ISM-0998 | AUTH_HMAC_SHA2_*, preferably NONE with AES-GCM | Chosen INTEG transform, checked against the cipher — NONE without an AEAD cipher means no integrity at all |
 | ISM-0999 | DH or ECDH, preferably 384-bit ECP or 3072/4096 MODP | Chosen D-H group |
+| ISM-0494 | Tunnel mode, or transport mode inside an IP tunnel | Chosen mode in the responder's proposal |
+| ISM-0496 | ESP is used for authentication and encryption | Protocol ID in the accepted proposal |
+| ISM-0498 | Security association lifetime under four hours | Lifetime attribute in the chosen proposal, where the responder sends one |
+| ISM-1000 | Perfect forward secrecy | A D-H group is present in the proposal, so keys are not derived from a long-term secret |
 
 ### Email and web transport
 
@@ -54,6 +58,7 @@ Answered from one unauthenticated, plaintext `IKE_SA_INIT` exchange.
 | ISM-1540 | DMARC configured to **reject** | `_dmarc` TXT. `p=none` and `p=quarantine` both still deliver |
 | ISM-1589 | MTA-STS is enabled | `_mta-sts` TXT plus the policy file, which must be served with a 200 and be in `enforce` mode |
 | ISM-1424 | HSTS in response headers | One HTTPS request |
+| ISM-0861 | DKIM signing is enabled | `_domainkey` TXT records for the common selectors |
 | ISM-2017 | DNS traffic encrypted | DNS over TLS on port 853 |
 | ISM-0548 | Secure session initiation protocol | SIP over TLS on port 5061 |
 

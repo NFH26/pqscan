@@ -45,15 +45,17 @@ A public host you can try it on is `sdf.org`, a free shell provider that has run
 pqc scan sdf.org -y --discover
 ```
 
-It answers SSH on 22 and on 110, 143 and 993 as well - ports a port map would have called POP3
-and IMAP. PQScan identifies each service from its greeting rather than from its port number,
+`sdf.org` answers SSH on port 22, and on 110, 143 and 993 as well - ports a port map would have
+read as POP3 and IMAP. PQScan identifies each service from its greeting rather than from its port number,
 so all four come back as SSH and are measured as SSH. That is the case a scan driven by a
 port list gets wrong.
 
 ## Host files
 
-CSV with a header row. Only `hostname` is required. See
-[`examples/hosts.csv`](../examples/hosts.csv).
+CSV with a header row. Only `hostname` is required. Copy
+[`examples/hosts.csv`](../examples/hosts.csv) for your own estate, or run
+[`examples/testbed.csv`](../examples/testbed.csv) to see the tool work against public endpoints
+with a known answer.
 
 ```csv
 hostname,port,protocol,owner,system_name,criticality,data_lifetime_years,classification
@@ -115,7 +117,7 @@ See [CI and automation](ci.md).
 |---|---|
 | `--fail-on-score N` | Exit 1 if any score exceeds N |
 | `--fail-on-class CLASS` | Exit 1 if any certificate chain has this classification |
-| `--require-hybrid-kex` | Exit 1 unless every measurable endpoint negotiates post-quantum |
+| `--require-hybrid-kex` | Exit 1 unless every measurable endpoint negotiates post-quantum. The name is historical; the gate accepts hybrid or pure |
 
 ## Scanning responsibly
 

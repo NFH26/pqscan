@@ -4,7 +4,6 @@ import datetime
 import json
 import logging
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -28,7 +27,13 @@ from pqc_scan.probes import ProbeContext, run_probe
 from pqc_scan.reporters import Reporter
 from pqc_scan.scoring import Scorer
 from pqc_scan.selftest import FAIL, PASS, UNREACHABLE, load_cases, run_cases_with_findings
-from pqc_scan.verify import independent_scores, load_scan, openssl_version, verify_hosts
+from pqc_scan.verify import (
+    independent_scores,
+    load_scan,
+    openssl_display,
+    openssl_version,
+    verify_hosts,
+)
 
 app = typer.Typer(help="ASD PQC Readiness Scanner (LATICE - Locate Phase)")
 console = Console()
@@ -47,6 +52,9 @@ def _tool_version() -> str:
 
 
 TOOL_VERSION = _tool_version()
+
+# Everything else in the cache file is scan metadata and travels straight into the report.
+_CACHE_ONLY_KEYS = frozenset({"findings", "certs", "scope_skipped"})
 
 
 def _parse_target_spec(value: str, port_map: dict[int, str]) -> Target:
@@ -68,17 +76,6 @@ def _parse_target_spec(value: str, port_map: dict[int, str]) -> Target:
     return Target(hostname=hostname, port=port, protocol=port_map.get(port, "tls"), criticality="medium")
 
 
-def openssl_status() -> tuple[str, tuple[int, int] | None]:
-    """Report the local OpenSSL, without deciding anything about it."""
-    try:
-        proc = subprocess.run(["openssl", "version"], capture_output=True, text=True, check=True)
-        text = proc.stdout.strip()
-        match = re.search(r"OpenSSL\s+(\d+)\.(\d+)", text)
-        return text, ((int(match.group(1)), int(match.group(2))) if match else None)
-    except Exception as error:
-        return f"not found ({error})", None
-
-
 def check_openssl_version(fatal: bool = True):
     """OpenSSL is OPTIONAL for scanning.
 
@@ -86,7 +83,7 @@ def check_openssl_version(fatal: bool = True):
     machine with an old OpenSSL or none at all. Only `pqc verify`, which cross-checks results
     against the openssl binary, needs 3.5 or newer.
     """
-    text, version = openssl_status()
+    text, version = openssl_version()
     if version is None or version < (3, 5):
         console.print(
             f"[dim]OpenSSL 3.5+ not available ({text.split('(')[0].strip()}); "
@@ -130,26 +127,6 @@ def _write_parents(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
-def _openssl_version() -> str:
-    """Local OpenSSL, for the report header. Scanning does not need it; `pqc verify` does."""
-    import subprocess
-
-    try:
-        text = subprocess.run(
-            ["openssl", "version"], capture_output=True, text=True, check=False, timeout=5
-        ).stdout.strip()
-        # OpenSSL repeats itself when the binary and the library report separately:
-        # "OpenSSL 3.6.4 ... (Library: OpenSSL 3.6.4 ...)". Keep the first half unless they
-        # actually differ, which is the only case where the second half tells you anything.
-        if "(Library: " in text:
-            binary, _, library = text.partition("(Library: ")
-            if binary.strip() == library.rstrip(") ").strip():
-                text = binary.strip()
-        return text or "not found"
-    except Exception:
-        return "not found"
-
-
 @app.command()
 def doctor():
     """Report what this installation can do."""
@@ -167,13 +144,19 @@ def doctor():
         f" reviewed {profile.get('last_reviewed', 'unknown')})  [green]ok[/green]"
     )
     console.print("  TLS group probe        native, no OpenSSL required  [green]ok[/green]")
-    text, version = openssl_status()
+    _, version = openssl_version()
+    text = openssl_display()
     if version and version >= (3, 5):
         console.print(f"  OpenSSL (verify only)  {text}  [green]ok[/green]")
     else:
         console.print(f"  OpenSSL (verify only)  {text}")
         console.print("                         [yellow]scanning works; `pqc verify` is unavailable[/yellow]")
-    console.print("\n[dim]Scores are risk: 0 means the endpoint already meets the profile, 100 is worst.[/dim]")
+    # What doctor is for is "can this machine run a scan", so it ends by saying how to
+    # start one. The scoring legend belongs with a score, and printing it here trained the
+    # reader to skip the line that carries it.
+    console.print(
+        "\n[dim]Ready. Try:[/dim]  ./pqc scan example.com --confirm-authorised"
+    )
 
 
 @app.command()
@@ -218,8 +201,12 @@ def scan(
     json_out: str = typer.Option(None, "--json", hidden=True, help="Deprecated: use --out with --format json"),
     cbom_out: str = typer.Option(None, "--cbom", hidden=True, help="Deprecated: use --out with --format cbom")
 ):
-    """Scan endpoints for post-quantum readiness. Protocol is chosen by port, or by the
-    protocol column in a CSV: TLS, STARTTLS and SSH are supported."""
+    """Measure endpoints against the ASD ISM and say what to change.
+
+    TLS, SSH, IPsec (IKEv2), STARTTLS, DNS over TLS and a domain's email and web controls.
+    The protocol is chosen from the port, overridden by --protocol or a CSV protocol column,
+    and corrected by what the service actually says when it answers.
+    """
     operator = operator or os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
     # UTC, so a scan run at 23:00 Brisbane and one at 09:00 UTC the next day do not land in
     # the same engagement by accident.
@@ -229,11 +216,10 @@ def scan(
     if not confirm_authorised:
         console.print("[bold red]Error: You must provide --confirm-authorised to scan these targets.[/bold red]")
         sys.exit(1)
-    try:
-        check_openssl_version(fatal=False)
-    except TypeError:
-        # Direct Python callers from tests may monkeypatch the legacy no-argument hook.
-        check_openssl_version()
+    # No OpenSSL check here on purpose. Scanning never uses the binary - the group probe is
+    # native Python - so a notice about it on every scan is a warning the reader learns to
+    # ignore. `pqc doctor` reports the capability and `pqc verify`, which does need it,
+    # enforces the version.
     if not isinstance(fail_on_score, int):
         fail_on_score = None
     if not isinstance(fail_on_class, str):
@@ -246,7 +232,7 @@ def scan(
     # Never let a missing openssl binary stop a scan. Scanning does not use it - only the
     # report header and `pqc verify` do - and an unguarded subprocess call here crashed the
     # tool outright on exactly the machine the README promises it runs on.
-    openssl_runtime_version = _openssl_version()
+    openssl_runtime_version = openssl_display()
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -429,35 +415,30 @@ def scan(
 
     findings, global_certs = asyncio.run(process_batch())
 
-    os.makedirs(cache_dir, exist_ok=True)
-    with open(Path(cache_dir) / "last_run.json", "w") as f:
-        json.dump({
-            "profile": engine.profile_name,
-            "scan_time": scan_time,
-            "tool_version": TOOL_VERSION,
-            "openssl_version": openssl_runtime_version,
-            "operator": operator,
-            "engagement": engagement,
-            "rules_version": engine.rules.get("profile", {}).get("rules_version"),
-            "authorised": confirm_authorised,
-            "scope_file": scope_file,
-            "scope_skipped": skipped_scope,
-            "findings": [json.loads(f.model_dump_json()) for f in findings],
-            "certs": {k: json.loads(v.model_dump_json()) for k, v in global_certs.items()}
-        }, f)
-
+    # One dictionary, written to the cache and handed to the reporter. These were two
+    # hand-maintained copies of the same ten keys, and `pqc report` rebuilt a third from the
+    # cache, so a key added in one place quietly went missing in the others.
     report_metadata = {
-        "authorised": confirm_authorised,
-        "scope_file": scope_file,
-        "probe_method": "native",
+        "profile": engine.profile_name,
+        "scan_time": scan_time,
+        "tool_version": TOOL_VERSION,
         "openssl_version": openssl_runtime_version,
         "operator": operator,
         "engagement": engagement,
-        "scan_time": scan_time,
-        "tool_version": TOOL_VERSION,
-        "profile": engine.profile_name,
         "rules_version": engine.rules.get("profile", {}).get("rules_version"),
+        "authorised": confirm_authorised,
+        "scope_file": scope_file,
+        "probe_method": "native",
     }
+
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(Path(cache_dir) / "last_run.json", "w") as handle:
+        json.dump({
+            **report_metadata,
+            "scope_skipped": skipped_scope,
+            "findings": [json.loads(f.model_dump_json()) for f in findings],
+            "certs": {k: json.loads(v.model_dump_json()) for k, v in global_certs.items()},
+        }, handle)
     reporter = Reporter(
         findings, global_certs, engine.profile_name, explain=explain, wide=wide, engine=engine,
         metadata=report_metadata,
@@ -549,66 +530,47 @@ def scan(
 @app.command()
 def report(
     out_dir: str = typer.Option("./reports", "--out-dir", "--out", help="Output directory"),
-    format: str = typer.Option("rich", "--format", help="rich, json, jsonl, cbom, csv, html"),
+    format: str = typer.Option(
+        None, "--format", "-f",
+        help="Comma-separated formats, or all. Same names as `scan`: " + ", ".join(FORMATS),
+    ),
     explain: bool = typer.Option(False, "--explain", help="Include explanations in reports"),
     wide: bool = typer.Option(False, "--wide", help="Show every column, for wide terminals"),
 ):
-    """Generate reports from the last scan."""
+    """Re-export the last scan without measuring anything again.
+
+    Every format comes from the same writers `scan --out` uses, so a report produced here and
+    a report produced during the scan are the same document. This command used to carry its
+    own thinner JSON and CBOM writers, which meant `report --format cbom` and
+    `scan -f cbom` disagreed about what a CBOM looks like.
+    """
     try:
-        with open(".pqc_cache/last_run.json") as f:
-            data = json.load(f)
-            findings = [HostFinding(**f) for f in data["findings"]]
-            certs = {k: CertificateData(**v) for k, v in data["certs"].items()}
+        with open(".pqc_cache/last_run.json") as handle:
+            data = json.load(handle)
+            findings = [HostFinding(**item) for item in data["findings"]]
+            certs = {key: CertificateData(**value) for key, value in data["certs"].items()}
             prof = data.get("profile", "Unknown")
     except FileNotFoundError:
         console.print("[bold red]No scan data found. Run `scan` first.[/bold red]")
         sys.exit(1)
 
-    os.makedirs(out_dir, exist_ok=True)
-    payload = {
-        "tool_version": data.get("tool_version"),
-        "profile": prof,
-        "scan_time": data.get("scan_time"),
-        "openssl_version": data.get("openssl_version"),
-        "probe_method": "native",
-        "findings": [json.loads(f.model_dump_json()) for f in findings],
-        "certs": {key: json.loads(value.model_dump_json()) for key, value in certs.items()},
-    }
-    if format == "json":
-        with open(Path(out_dir) / "report.json", "w") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True, default=str)
-    elif format == "jsonl":
-        with open(Path(out_dir) / "report.jsonl", "w") as handle:
-            for finding in payload["findings"]:
-                handle.write(json.dumps(finding, sort_keys=True, default=str) + "\n")
-            handle.write(json.dumps({"summary": {"count": len(findings), "probe_method": "native"}}, sort_keys=True) + "\n")
-    elif format == "cbom":
-        components = []
-        for finding in findings:
-            location = f"{finding.target.hostname}:{finding.target.port}"
-            components.append({"type": "cryptographic-asset", "bom-ref": location, "name": finding.negotiated_group, "properties": [{"name": "usage_location", "value": location}, {"name": "quantum_safety", "value": finding.pq_readiness}, {"name": "probe_method", "value": finding.probe_method}]})
-        with open(Path(out_dir) / "report.cbom.json", "w") as handle:
-            json.dump({"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1, "components": components}, handle, indent=2, sort_keys=True)
-    elif format not in {"rich", "csv", "html"}:
-        console.print(f"[bold red]Unsupported report format: {format}[/bold red]")
-        raise typer.Exit(code=2)
+    metadata = {key: value for key, value in data.items() if key not in _CACHE_ONLY_KEYS}
+    metadata.setdefault("profile", prof)
+    metadata.setdefault("authorised", "unknown")
+    metadata.setdefault("probe_method", "native")
     reporter = Reporter(
-        findings, certs, prof, explain=explain, wide=wide, engine=RuleEngine(prof),
-        metadata={
-            "authorised": data.get("authorised", "unknown"),
-            "scope_file": data.get("scope_file"),
-            "probe_method": "native",
-            "openssl_version": data.get("openssl_version"),
-            "operator": data.get("operator"),
-            "engagement": data.get("engagement"),
-            "scan_time": data.get("scan_time"),
-            "tool_version": data.get("tool_version"),
-            "rules_version": data.get("rules_version"),
-        },
+        findings, certs, prof, explain=explain, wide=wide,
+        engine=RuleEngine(prof), metadata=metadata,
     )
-    reporter.write_html(f"{out_dir}/report.html")
-    reporter.write_csv(f"{out_dir}/findings.csv")
-    console.print(f"[green]Reports generated in {out_dir}/[/green]")
+    try:
+        written = export(out_dir, format, findings, certs, RuleEngine(prof), metadata, reporter)
+    except ValueError as error:
+        console.print(f"[bold red]{error}[/bold red]")
+        raise typer.Exit(code=2) from error
+    console.print(
+        f"[green]Wrote {len(written)} file(s) to {out_dir}/[/green]  "
+        + ", ".join(path.name for path in written)
+    )
 
 
 @app.command()
@@ -724,7 +686,7 @@ def selftest(
         findings, certificates, engine.profile_name, wide=True, engine=engine,
         metadata={
             "authorised": True, "scope_file": None, "probe_method": "native",
-            "openssl_version": _openssl_version(), "operator": "selftest",
+            "openssl_version": openssl_display(), "operator": "selftest",
             "engagement": "selftest", "scan_time": scan_time, "tool_version": TOOL_VERSION,
             "rules_version": engine.rules.get("profile", {}).get("rules_version"),
         },

@@ -48,7 +48,6 @@ First public release.
 - **mypy now actually runs.** It was aborting on a module-path collision before checking a
   single file, so the type gate had never caught anything. The findings it surfaced once it ran
   are fixed in this release.
-
 - **The scanner crashed on a machine with no OpenSSL binary** — the configuration the README
   promises and `doctor` reports as fine.
 - **A file descriptor leaked on every exception path** in the main TLS connection, which is the
@@ -69,6 +68,26 @@ First public release.
 
 ### Changed
 
+- **`pqc report` uses the same writers as `pqc scan --out`.** It carried its own thinner JSON
+  and CBOM writers, so `report --format cbom` and `scan -f cbom` produced different documents.
+  It now takes the same format names as `scan` and writes the same files. The `rich` and
+  `jsonl` format names are gone; `rich` was the terminal output, which prints anyway.
+- **The status legend lists only the bands on screen.** A six-band legend under a table holding
+  one band is definitions for something the reader is not looking at.
+- **A one-host scan drops the fleet summary.** "Hosts scanned 1" and "PQ readiness HYBRID 1"
+  both restated the single row underneath them.
+- **`pqc scan` no longer warns about an old OpenSSL.** Scanning never uses the binary, so the
+  notice was a warning that trains people to ignore warnings. `pqc doctor` reports the
+  capability and `pqc verify` enforces the version.
+- **`pqc doctor` ends by showing how to start a scan** rather than with a scoring legend that
+  belongs next to a score.
+- **The summary counts endpoints, not hosts.** After `--discover` finds seven services on one
+  host, "Hosts scanned 7" was simply wrong; it now reads "Endpoints 7 on 1 host(s)" and adds a
+  breakdown by service when more than one kind was measured.
+- **Every row names its service.** Four SSH listeners on one host differ only by port, and a
+  table showing the port alone read as the same row four times.
+- **Recommendations list every affected endpoint.** "+2 more" hid exactly the VPN or SSH host
+  the reader was looking for.
 - **Removed the PQCMM claim.** Checked against the published model: the PKI Consortium's PQC
   Maturity Model rates a named product as shipped, on evidence a handshake cannot see. PQScan
   reports its own band and says plainly why a scan can contribute evidence to a PQCMM assessment

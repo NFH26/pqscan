@@ -61,9 +61,9 @@ chain. A single grade hides that, and the hiding is the part that costs you.
 
 ### How do I check the tool is right?
 
-`pqc selftest`. It scans a reference endpoint for every protocol, checks the answers against
-known-correct values, verifies the scoring invariants, and confirms every ISM control number
-still exists in ASD's catalog. See [CI and automation](ci.md#verifying-the-tool-in-ci).
+`pqc selftest`. It scans a reference endpoint for every protocol and checks each answer against
+a known-correct one. [CI and automation](ci.md#verifying-the-tool-in-ci) covers what else it
+checks and how to run it in a pipeline.
 
 ### Is this endorsed by ASD?
 

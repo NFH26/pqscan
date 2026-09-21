@@ -3,6 +3,13 @@
 The probe exists because OpenSSL's negotiated default group cannot establish support for
 pure ML-KEM groups that are not in its default offer list. The codepoints come from the
 ISM profile's tls_groups block; see the profile comments for registry verification notes.
+
+Unlike ssh_probe, ike_probe and domain_probe, this module is not a per-host probe and does
+not return an Observation. It is a lower-level primitive: one question about one group or
+one cipher suite, answered by one handshake. NativeTLSCollector calls it many times per host
+and aggregates the answers into the HostObservation the rest of the tool works on, which is
+why the results here are frozen dataclasses carrying a status rather than a mutable record
+with an error list.
 """
 from __future__ import annotations
 
@@ -121,6 +128,10 @@ def _selected_group(payload: bytes) -> tuple[int | None, bool]:
         raise ValueError("truncated_server_hello")
     is_hrr = body[2:34] == HRR_RANDOM
     session_length = body[34]
+    # 35 bytes of fixed ServerHello header, then the variable session_id, then the 2-byte
+    # cipher suite and the 1-byte compression method.
+    # 35 bytes of fixed ServerHello header, then the variable session_id, then the 2-byte
+    # cipher suite and the 1-byte compression method, to reach the extensions.
     position = 35 + session_length + 3
     if position + 2 > len(body):
         raise ValueError("truncated_server_hello_extensions")
@@ -362,6 +373,7 @@ def _server_hello_choice(payload: bytes) -> tuple[int, int]:
         raise ValueError("truncated_server_hello")
     version = struct.unpack(">H", body[0:2])[0]
     session_length = body[34]
+    # Same header, stopping one field earlier: the cipher suite is what this reader wants.
     position = 35 + session_length
     if position + 2 > len(body):
         raise ValueError("truncated_server_hello_cipher")

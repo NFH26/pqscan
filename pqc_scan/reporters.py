@@ -1,5 +1,6 @@
 import csv
 import re
+from collections import Counter
 from typing import ClassVar
 
 from jinja2 import Template
@@ -11,6 +12,24 @@ from rich.table import Table
 from pqc_scan.models import CertificateData, HostFinding
 from pqc_scan.remediation import actions_for, consolidate, endpoint_label
 from pqc_scan.report_template import REPORT_TEMPLATE
+
+# One risk scale, defined once. Four copies of these edges lived in this file - the terminal
+# score colour, the terminal distribution, the HTML colour and the HTML histogram - so
+# changing the scale meant finding all four and getting all four right.
+RISK_BANDS: tuple[tuple[int, str, str, str], ...] = (
+    (25, "0-25", "green", "good"),
+    (50, "26-50", "yellow", "warning"),
+    (75, "51-75", "dark_orange", "serious"),
+    (100, "76-100", "bold red", "critical"),
+)
+
+
+def _risk_band(score: int) -> tuple[int, str, str, str]:
+    """The band a risk score falls in: (upper edge, label, terminal style, HTML status)."""
+    for band in RISK_BANDS:
+        if score <= band[0]:
+            return band
+    return RISK_BANDS[-1]
 
 
 def _dedupe(items: list[str]) -> list[str]:
@@ -26,6 +45,18 @@ def _dedupe(items: list[str]) -> list[str]:
             seen.add(item)
             out.append(item)
     return out
+
+
+def _display_findings(finding: HostFinding) -> list[str]:
+    """What a row says it found, in the order it found it.
+
+    Three renderers show this list and they have to agree. Deduplicated because the scan loop
+    copies a validation failure into rule_findings, which printed no_tls_offered twice.
+    """
+    items = _dedupe(finding.rule_findings or finding.validation_failures)
+    if finding.obsolete_tls_only and not any("obsolete_tls" in item for item in items):
+        items.append(f"obsolete_tls ({finding.max_supported_tls})")
+    return items
 
 
 def _anchor(finding: HostFinding) -> str:
@@ -44,6 +75,18 @@ class Reporter:
         self.wide = wide
         # Optional: without it the reports still render, just without advice.
         self.engine = engine
+
+    # Status palette. Reserved for state, never reused as a series colour, and always
+    # rendered beside a text label so meaning never rests on hue alone.
+    STATUS: ClassVar = {"good": "#0ca30c", "warning": "#fab219", "serious": "#ec835a",
+                        "critical": "#d03b3b", "muted": "#898781"}
+    READINESS_HTML: ClassVar = {
+        "pure_pq_approved": ("Post-quantum", "good"),
+        "hybrid_transitional": ("Hybrid (transitional)", "warning"),
+        "classical_only": ("Classical only", "critical"),
+        "unknown": ("Not determined", "muted"),
+    }
+
 
     # Presentation constants. Readiness and score bands are shown as short coloured tokens
     # because the full enum names are what pushed the table past the terminal width.
@@ -75,20 +118,35 @@ class Reporter:
     def _score_cell(score: int | None) -> str:
         if score is None:
             return "[dim]n/a[/dim]"
-        if score <= 25:
-            style = "green"
-        elif score <= 50:
-            style = "yellow"
-        elif score <= 75:
-            style = "dark_orange"
-        else:
-            style = "bold red"
+        style = _risk_band(score)[2]
         return f"[{style}]{score}[/{style}]"
+
+    # Band, then what it means. One definition each, used by the legend under the table.
+    BAND_LEGEND: ClassVar = (
+        (5, "pure post-quantum, ASD-approved beyond 2030"),
+        (4, "post-quantum in use"),
+        (3, "supports it but does not use it"),
+        (2, "sound classical"),
+        (1, "dated"),
+        (0, "unprotected"),
+    )
 
     # Colour by band, so the column reads at a glance before anyone parses the words.
     BAND_STYLE: ClassVar = {
         5: "bold green", 4: "green", 3: "yellow", 2: "dark_orange", 1: "red", 0: "bold red",
     }
+
+    @staticmethod
+    def _endpoint_cell(finding: HostFinding) -> str:
+        """Host, port and service. Four SSH listeners on one host differ only by port, and a
+        row that shows the port alone reads as the same row printed four times."""
+        if finding.service == "domain" or finding.target.port == 0:
+            return f"{finding.target.hostname} [dim]domain[/dim]"
+        # For a STARTTLS port, "starttls:ftp" says more than "tls": it is the upgrade that
+        # was measured, and whether it happened at all is the finding.
+        protocol = finding.target.protocol or ""
+        label = protocol if protocol.startswith("starttls:") else finding.service
+        return f"{finding.target.hostname}:{finding.target.port} [dim]{label}[/dim]"
 
     def _status_cell(self, finding: HostFinding, fallback_style: str, fallback_label: str) -> str:
         """One cell carrying both the band and what it means."""
@@ -137,15 +195,12 @@ class Reporter:
         )
 
         def distribution(scores: list[int]) -> str:
-            buckets = [0, 0, 0, 0]
+            counts = {band[1]: 0 for band in RISK_BANDS}
             for score in scores:
-                buckets[0 if score <= 25 else 1 if score <= 50 else 2 if score <= 75 else 3] += 1
+                counts[_risk_band(score)[1]] += 1
             return "  ".join(
-                f"[{style}]{label} {count}[/{style}]"
-                for (label, count), style in zip(
-                    zip(("0-25", "26-50", "51-75", "76-100"), buckets, strict=False),
-                    ("green", "yellow", "dark_orange", "bold red"), strict=False,
-                )
+                f"[{style}]{label} {counts[label]}[/{style}]"
+                for _, label, style, _ in RISK_BANDS
             )
 
         def percentage(part: int, whole: int) -> str:
@@ -164,9 +219,21 @@ class Reporter:
         # compliance tool trains people to skim past the part that matters.
         total = len(self.findings)
         unmeasured = total - determinable_groups
-        tiles: list[tuple[tuple[str, str], tuple[str, str] | None]] = [
-            (("Hosts scanned", str(total)), ("PQ readiness", readiness_summary)),
-        ]
+        tiles: list[tuple[tuple[str, str], tuple[str, str] | None]] = []
+        if total > 1:
+            services = Counter(f.service for f in self.findings)
+            mix = "  ".join(f"{name} {count}" for name, count in sorted(services.items()))
+            # "Hosts scanned 7" was wrong after --discover found seven services on one host,
+            # and the count a reader needs is how many of each kind they are looking at.
+            tiles.append((
+                ("Endpoints", f"{total} [dim]on {len({f.target.hostname for f in self.findings})} host(s)[/dim]"),
+                ("PQ readiness", readiness_summary),
+            ))
+            if len(services) > 1:
+                tiles.append((("Services", mix), None))
+        # Over one host, "Hosts scanned 1", "PQ readiness HYBRID 1" and the endpoint name all
+        # restate the single row printed directly underneath. What is left worth printing is
+        # provenance, which the tiles below add.
         if total >= 10:
             tiles += [
                 (("Conf ready", percentage(conf_ready, len(conf_scores))),
@@ -201,7 +268,7 @@ class Reporter:
         table = Table(
             box=box.SIMPLE_HEAVY, header_style="bold", expand=True, pad_edge=False, padding=(0, 1),
         )
-        table.add_column("Host", no_wrap=True, overflow="ellipsis", max_width=28, min_width=14)
+        table.add_column("Endpoint", no_wrap=True, overflow="ellipsis", max_width=34, min_width=16)
         if not compact:
             table.add_column("Version", no_wrap=True, min_width=7)
         table.add_column("Key exchange", no_wrap=True, overflow="ellipsis", max_width=34, min_width=14)
@@ -235,11 +302,7 @@ class Reporter:
             # do only matters where it differs from what it actually negotiates.
             if finding.capability_exceeds_default and finding.best_supported_group:
                 group = f"{group} [dim](can: {finding.best_supported_group})[/dim]"
-            # Deduplicated, preserving order: a validation failure is copied into
-            # rule_findings by the scan loop, so no_tls_offered was printed twice.
-            items = _dedupe(finding.rule_findings or finding.validation_failures)
-            if finding.obsolete_tls_only and not any("obsolete_tls" in item for item in items):
-                items.append(f"obsolete_tls ({finding.max_supported_tls})")
+            items = _display_findings(finding)
             labels: list[str] = []
             for item in items:
                 label = self._short_finding(item)
@@ -248,7 +311,7 @@ class Reporter:
             shown = ", ".join(labels[:2]) + (f" [dim]+{len(labels) - 2}[/dim]" if len(labels) > 2 else "")
             label, style = self.READINESS_STYLE[readiness]
 
-            row = [f"{finding.target.hostname}:{finding.target.port}"]
+            row = [self._endpoint_cell(finding)]
             if not compact:
                 row.append(tls)
             row.extend([
@@ -265,11 +328,18 @@ class Reporter:
             table.add_row(*row)
 
         console.print(table)
+        # Only the bands actually on screen. The full 0-5 legend under a table holding one
+        # band is five lines of definitions for something the reader is not looking at, and
+        # a legend that is mostly irrelevant is one they stop reading.
+        present = {f.readiness_band for f in self.findings if f.readiness_band is not None}
+        legend = "  ".join(
+            f"[{self.BAND_STYLE[band]}]{band}[/{self.BAND_STYLE[band]}] {text}"
+            for band, text in self.BAND_LEGEND if band in present
+        )
+        if any(f.readiness_band is None for f in self.findings):
+            legend += "  [dim]UNKNOWN not measured[/dim]"
         console.print(
-            "[dim]Status:[/dim] [bold green]5[/bold green] pure post-quantum, ASD-approved beyond 2030  "
-            "[green]4[/green] post-quantum in use  [yellow]3[/yellow] supports it but does not use it  "
-            "[dark_orange]2[/dark_orange] sound classical  [red]1[/red] dated  "
-            "[bold red]0[/bold red] unprotected  [dim]UNKNOWN not measured[/dim]"
+            f"[dim]Status:[/dim] {legend}"
             "\n[dim]Risk 0 = already meets the profile, 100 = worst. Lower is better.[/dim]"
         )
         if compact:
@@ -291,12 +361,18 @@ class Reporter:
                 action_table.add_column("#", justify="right", no_wrap=True, min_width=2)
                 action_table.add_column("Effort", no_wrap=True, min_width=11)
                 action_table.add_column("Do this", overflow="ellipsis", no_wrap=True, ratio=2)
-                action_table.add_column("Applies to", overflow="ellipsis", no_wrap=True, ratio=1)
+                # Folded, not truncated. "cloudflare.com:44..." names no endpoint at all,
+                # and the whole point of the column is that the reader can act on it.
+                action_table.add_column("Applies to", overflow="fold", ratio=1, min_width=22)
                 for index, action in enumerate(actions, start=1):
                     style = "bold red" if action.priority == 1 else "yellow" if action.priority <= 3 else "dim"
-                    endpoints = action.hosts[:2]
+                    # Every endpoint, not a sample. "+2 more" hides exactly the VPN or the
+                    # SSH host the reader is trying to find, which is the whole point of the
+                    # column. The cap is only there to stop a fleet-wide action filling the
+                    # screen; the HTML report always lists all of them.
+                    endpoints = action.hosts[:12]
                     extra = len(action.hosts) - len(endpoints)
-                    applies = ", ".join(endpoints) + (f" +{extra} more" if extra > 0 else "")
+                    applies = ", ".join(endpoints) + (f" +{extra} more in the report" if extra else "")
                     action_table.add_row(
                         str(index), action.effort, f"[{style}]{action.action}[/{style}]", applies,
                     )
@@ -333,46 +409,41 @@ class Reporter:
 
 
     def write_csv(self, filepath: str) -> None:
-        with open(filepath, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(["Target", "Version", "Group", "PQ State", "Findings", "Conf Score", "Auth Score", "Chain Class", "Errors"])
-            for f_obj in self.findings:
-                tls_v = f_obj.tls_version or (f_obj.max_supported_tls if f_obj.obsolete_tls_only else "None")
-                grp = f_obj.negotiated_group if not f_obj.obsolete_tls_only else "Obsolete TLS"
-                finding_items = list(f_obj.validation_failures)
-                if f_obj.obsolete_tls_only:
-                    finding_items.append(f"obsolete_tls ({f_obj.max_supported_tls})")
-                cc = f"{f_obj.chain_classification.value} ({f_obj.chain_classification_reason})" if f_obj.chain_classification else "None"
+        """One row per endpoint, for a spreadsheet or a ticketing import."""
+        columns = ["Endpoint", "Service", "Version", "Group", "PQ State", "Findings",
+                   "Conf score", "Auth score", "Chain class", "Errors"]
+        with open(filepath, "w", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(columns)
+            for finding in self.findings:
+                version = finding.version or finding.tls_version or (
+                    finding.max_supported_tls if finding.obsolete_tls_only else "None"
+                )
+                group = "Obsolete TLS" if finding.obsolete_tls_only else finding.negotiated_group
+                chain = (
+                    f"{finding.chain_classification.value} ({finding.chain_classification_reason})"
+                    if finding.chain_classification else "None"
+                )
                 writer.writerow([
-                    f"{f_obj.target.hostname}:{f_obj.target.port}",
-                    tls_v, grp, f_obj.pq_status,
-                    ", ".join(finding_items) or "None",
-                    f_obj.confidentiality_score, f_obj.authentication_score,
-                    cc, "; ".join(f_obj.handshake_errors) or "None"
+                    f"{finding.target.hostname}:{finding.target.port}",
+                    finding.service,
+                    version,
+                    group,
+                    finding.pq_status,
+                    # The same list the table and the HTML report show, so the three exports
+                    # of one scan cannot disagree about what was found.
+                    ", ".join(_display_findings(finding)) or "None",
+                    finding.confidentiality_score,
+                    finding.authentication_score,
+                    chain,
+                    "; ".join(finding.handshake_errors) or "None",
                 ])
-
-    # Status palette. Reserved for state, never reused as a series colour, and always
-    # rendered beside a text label so meaning never rests on hue alone.
-    STATUS: ClassVar = {"good": "#0ca30c", "warning": "#fab219", "serious": "#ec835a",
-                        "critical": "#d03b3b", "muted": "#898781"}
-    READINESS_HTML: ClassVar = {
-        "pure_pq_approved": ("Post-quantum", "good"),
-        "hybrid_transitional": ("Hybrid (transitional)", "warning"),
-        "classical_only": ("Classical only", "critical"),
-        "unknown": ("Not determined", "muted"),
-    }
 
     @classmethod
     def _band_color(cls, score):
         if score is None:
             return cls.STATUS["muted"]
-        if score <= 25:
-            return cls.STATUS["good"]
-        if score <= 50:
-            return cls.STATUS["warning"]
-        if score <= 75:
-            return cls.STATUS["serious"]
-        return cls.STATUS["critical"]
+        return cls.STATUS[_risk_band(score)[3]]
 
     def _html_context(self) -> dict:
         total = len(self.findings)
@@ -388,12 +459,10 @@ class Reporter:
             })
 
         def buckets(scores):
-            edges = [(0, 25, "0-25", "good"), (26, 50, "26-50", "warning"),
-                     (51, 75, "51-75", "serious"), (76, 100, "76-100", "critical")]
             widest = 0
             out = []
-            for low, high, label, status in edges:
-                count = sum(low <= score <= high for score in scores)
+            for _, label, _, status in RISK_BANDS:
+                count = sum(_risk_band(score)[1] == label for score in scores)
                 widest = max(widest, count)
                 out.append({"label": label, "count": count, "color": self.STATUS[status]})
             for bucket in out:
@@ -416,11 +485,7 @@ class Reporter:
         for finding in ordered:
             key = finding.pq_readiness if finding.pq_readiness in self.READINESS_HTML else "unknown"
             label, status = self.READINESS_HTML[key]
-            # Deduplicated, preserving order: a validation failure is copied into
-            # rule_findings by the scan loop, so no_tls_offered was printed twice.
-            items = _dedupe(finding.rule_findings or finding.validation_failures)
-            if finding.obsolete_tls_only and not any("obsolete_tls" in item for item in items):
-                items.append(f"obsolete_tls ({finding.max_supported_tls})")
+            items = _display_findings(finding)
             rows.append({
                 "host": f"{finding.target.hostname}:{finding.target.port}",
                 "service": finding.service,

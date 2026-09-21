@@ -122,7 +122,7 @@ class NativeTLSCollector:
     def _debug_phase(self, phase: str, started: float) -> None:
         if self.verbose:
             logging.getLogger(__name__).debug(
-                "%s:%s phase=%s elapsed=%.3fs", self.__class__.__name__, "phase", phase, time.perf_counter() - started
+                "%s phase=%s elapsed=%.3fs", self.__class__.__name__, phase, time.perf_counter() - started
             )
 
     async def _perform_starttls(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, protocol: str) -> None:
@@ -226,83 +226,78 @@ class NativeTLSCollector:
         writer: asyncio.StreamWriter | None = None
         try:
             # Each phase below has its own timeout; there is intentionally no shared budget.
-            if True:
-                phase_name = "TCP connect"
+            phase_name = "TCP connect"
+            phase_started = time.perf_counter()
+            try:
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(target.hostname, target.port), self.timeout
+                )
+            except TimeoutError:
+                errors.append(f"timed out after {self.timeout}s during TCP connect")
+                return observation()
+            self._debug_phase("tcp_connect", phase_started)
+            if writer is None:  # open_connection returns a writer or raises; this is belt and braces.
+                errors.append("tcp connect returned no connection")
+                return observation()
+            if target.protocol and target.protocol.startswith("starttls:"):
+                phase_name = "STARTTLS negotiation"
                 phase_started = time.perf_counter()
                 try:
-                    reader, writer = await asyncio.wait_for(
-                        asyncio.open_connection(target.hostname, target.port), self.timeout
-                    )
+                    await asyncio.wait_for(self._perform_starttls(reader, writer, target.protocol), self.timeout)
                 except TimeoutError:
-                    errors.append(f"timed out after {self.timeout}s during TCP connect")
+                    errors.append(f"timed out after {self.timeout}s during STARTTLS negotiation")
                     return observation()
-                self._debug_phase("tcp_connect", phase_started)
-                if writer is None:  # open_connection returns a writer or raises; this is belt and braces.
-                    errors.append("tcp connect returned no connection")
-                    return observation()
-                if target.protocol and target.protocol.startswith("starttls:"):
-                    phase_name = "STARTTLS negotiation"
-                    phase_started = time.perf_counter()
-                    try:
-                        await asyncio.wait_for(self._perform_starttls(reader, writer, target.protocol), self.timeout)
-                    except TimeoutError:
-                        errors.append(f"timed out after {self.timeout}s during STARTTLS negotiation")
-                        return observation()
-                    phase_name = "TLS handshake"
-                    phase_started = time.perf_counter()
-                try:
-                    await asyncio.wait_for(writer.start_tls(ctx, server_hostname=target.hostname), self.timeout)
-                except TimeoutError:
-                    errors.append(f"timed out after {self.timeout}s during TLS handshake")
-                    return observation()
-                self._debug_phase("tls_handshake", phase_started)
-
-                ssl_obj = writer.get_extra_info('ssl_object')
-                tls_version = ssl_obj.version()
-                cipher_info = ssl_obj.cipher()
-                if cipher_info:
-                    cipher_suite = cipher_info[0]
-
-                phase_name = "certificate chain extraction"
+                phase_name = "TLS handshake"
                 phase_started = time.perf_counter()
-                if hasattr(ssl_obj, 'get_unverified_chain') and ssl_obj.get_unverified_chain():
-                    der_certs = list(ssl_obj.get_unverified_chain())
-                for der in der_certs:
-                    b64 = base64.b64encode(der).decode("utf-8")
-                    # The join is hoisted out of the f-string: a backslash inside an f-string
-                    # expression is a syntax error before Python 3.12, and requiring 3.13 to
-                    # format a PEM block is not a trade worth making.
-                    body = "\n".join(b64[i:i + 64] for i in range(0, len(b64), 64))
-                    pems.append(f"-----BEGIN CERTIFICATE-----\n{body}\n-----END CERTIFICATE-----")
-                self._debug_phase("certificate_chain_extraction", phase_started)
+            try:
+                await asyncio.wait_for(writer.start_tls(ctx, server_hostname=target.hostname), self.timeout)
+            except TimeoutError:
+                errors.append(f"timed out after {self.timeout}s during TLS handshake")
+                return observation()
+            self._debug_phase("tls_handshake", phase_started)
 
-                # Only TLS 1.3 can negotiate any of these groups, so enumerating them against
-                # a TLS 1.2 server is 17 pointless connections per host. Skipping them cuts the
-                # load enough to stop small servers rate-limiting us and reporting false timeouts.
-                if tls_version == "TLSv1.3":
-                    capability_results = await enumerate_groups(
-                        target.hostname, target.port, self.timeout, target.protocol, self._perform_starttls
-                    )
-                else:
-                    capability_results = []
-                supported_groups = [
-                    result.group for result in capability_results
-                    if result.status == "supported" and result.group
-                ]
+            ssl_obj = writer.get_extra_info('ssl_object')
+            tls_version = ssl_obj.version()
+            cipher_info = ssl_obj.cipher()
+            if cipher_info:
+                cipher_suite = cipher_info[0]
 
-                phase_name = "OpenSSL group probe"
-                phase_started = time.perf_counter()
-                probe = await probe_negotiated(
+            phase_name = "certificate chain extraction"
+            phase_started = time.perf_counter()
+            if hasattr(ssl_obj, 'get_unverified_chain') and ssl_obj.get_unverified_chain():
+                der_certs = list(ssl_obj.get_unverified_chain())
+            for der in der_certs:
+                b64 = base64.b64encode(der).decode("utf-8")
+                # The join is hoisted out of the f-string: a backslash inside an f-string
+                # expression is a syntax error before Python 3.12, and requiring 3.13 to
+                # format a PEM block is not a trade worth making.
+                body = "\n".join(b64[i:i + 64] for i in range(0, len(b64), 64))
+                pems.append(f"-----BEGIN CERTIFICATE-----\n{body}\n-----END CERTIFICATE-----")
+            self._debug_phase("certificate_chain_extraction", phase_started)
+
+            # Only TLS 1.3 can negotiate any of these groups, so enumerating them against
+            # a TLS 1.2 server is 17 pointless connections per host. Skipping them cuts the
+            # load enough to stop small servers rate-limiting us and reporting false timeouts.
+            if tls_version == "TLSv1.3":
+                capability_results = await enumerate_groups(
                     target.hostname, target.port, self.timeout, target.protocol, self._perform_starttls
                 )
-                negotiated_group = probe.group or "unknown"
-                if probe.status == "not_testable":
-                    errors.append(f"native_group_probe:{probe.reason or 'not_testable'}")
-                self._debug_phase("native_group_probe", phase_started)
+            else:
+                capability_results = []
+            supported_groups = [
+                result.group for result in capability_results
+                if result.status == "supported" and result.group
+            ]
 
-                phase_name = "connection close"
-                phase_started = time.perf_counter()
-                self._debug_phase("connection_close", phase_started)
+            phase_name = "native group probe"
+            phase_started = time.perf_counter()
+            probe = await probe_negotiated(
+                target.hostname, target.port, self.timeout, target.protocol, self._perform_starttls
+            )
+            negotiated_group = probe.group or "unknown"
+            if probe.status == "not_testable":
+                errors.append(f"native_group_probe:{probe.reason or 'not_testable'}")
+            self._debug_phase("native_group_probe", phase_started)
 
         except ServiceUnavailable as e:
             errors.append(f"service_unavailable: {e}")

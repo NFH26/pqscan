@@ -36,9 +36,12 @@ def endpoint_label(finding: HostFinding) -> str:
     config change" tells the reader nothing they can act on, so every action carries the
     endpoints it applies to, and each one says which service it means.
     """
-    service = finding.service
-    if service == "domain" or finding.target.port == 0:
+    if finding.service == "domain" or finding.target.port == 0:
         return f"{finding.target.hostname} (domain)"
+    # A STARTTLS port names its upgrade: "starttls:smtp" tells an administrator which
+    # daemon's configuration to open, where a bare "tls" does not.
+    protocol = finding.target.protocol or ""
+    service = protocol if protocol.startswith("starttls:") else finding.service
     return f"{finding.target.hostname}:{finding.target.port} ({service})"
 
 

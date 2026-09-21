@@ -1,6 +1,6 @@
 # Scores and bands
 
-## Two axes, not one
+## The two scores
 
 Every endpoint gets two scores, each 0–100, where **0 means it already meets the profile** and
 100 is the worst case.
@@ -35,8 +35,9 @@ Alongside the scores, one 0–5 band per endpoint:
 that *can but does not* both score as classical. Only the second is a preference line away from
 compliant. Finding those is what the capability probe exists for, and nothing else surfaces it.
 
-Readiness sets the ceiling and the score sets the floor, so a post-quantum endpoint is never
-banded below a classical one with the same weaknesses. Anything with no encryption or an
+Post-quantum readiness decides the band first, and the scores can only move it down within
+that, so a post-quantum endpoint is never banded below a classical one with the same
+weaknesses. Anything with no encryption or an
 obsolete protocol is banded 0 regardless of score — that is absent security, not low maturity.
 An endpoint that could not be measured gets no band at all, because "unmeasured" is not a
 posture and a 0 would read as a finding.
@@ -46,9 +47,9 @@ posture and a 0 would read as a finding.
 PQScan's band deliberately does **not** claim to implement the
 [PKI Consortium's PQC Maturity Model](https://pkic.org/wg/pqc/pqcmm/). The PQCMM rates a named
 *product or service as released and shipped*, and its levels 2 and above require evidence no
-scanner can observe: CAVP conformance results, an SBOM and CBOM, crypto-agility across
-algorithms, an HNDL exposure register, zero-legacy configurability including firmware signing,
-and independent FIPS 140 or Common Criteria validation.
+scanner can observe: laboratory validation of the implementation, a published inventory of the
+software and the cryptography inside it, and a documented plan for the data an attacker may be
+recording today to decrypt once a quantum computer exists.
 
 A scan can contribute evidence towards a PQCMM assessment. It cannot be one, and presenting a
 handshake as a PQCMM level would be exactly the unsupported claim their own guidelines warn
@@ -62,15 +63,18 @@ Use `--explain` to see it:
 cloudflare.com:443
 Confidentiality:
 key exchange X25519MLKEM768 -> TRANSITIONAL (+20)
-    data_lifetime > 5y (+10)
-    subtotal 30 x criticality low 0.7 = 21
+    subtotal 20 x criticality medium 1.0 = 20
 
 Authentication:
 weakest signature in chain: ecdsa-with-SHA256 on cloudflare.com -> NOT_APPROVED_AFTER_2030 (+50)
     worst hash in chain: NOT_APPROVED_AFTER_2030 (+10)
     curve_below_preferred (informational) (+5)
-    subtotal 65 x criticality low 0.7 = 45 (capped at 100)
+    subtotal 65 x criticality medium 1.0 = 65 (capped at 100)
 ```
+
+Those are the 20 and 65 the summary table prints. A host file entry marked `criticality,low`
+with `data_lifetime_years,7` would score the same endpoint differently: `+10` for the data
+lifetime and a `0.7` multiplier, so `30 x 0.7 = 21`.
 
 Every line names a rule, its ISM control where one applies, and its points. **The lines add up
 to the subtotal.** The subtotal is multiplied by criticality and capped at 100.

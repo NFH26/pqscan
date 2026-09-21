@@ -207,6 +207,51 @@ def check_docs_and_metadata_agree() -> CheckResult:
     return result
 
 
+def check_coverage_doc_is_complete() -> CheckResult:
+    """Every control the tool cites must appear in the coverage page, and the README's count
+    must match it.
+
+    The claim that sells this tool is that its findings carry ISM control numbers. A coverage
+    page that has quietly fallen behind the rule profile, or a headline count nobody can
+    reproduce by counting the table, undermines exactly that claim. This keeps them honest
+    without anyone having to remember.
+    """
+    root = Path(__file__).resolve().parent.parent
+    # Not shipped in the wheel; see check_docs_and_metadata_agree for why this is skipped.
+    if not (root / "pyproject.toml").exists():
+        result = _result("rules", "coverage page matches the rules", [])
+        result.detail = "installed; repository files not checked"
+        return result
+
+    coverage = (root / "docs" / "ism-coverage.md").read_text(encoding="utf-8")
+    measured = coverage[coverage.index("## Measured"):coverage.index("## Not observable")]
+    documented: set[str] = set()
+    # "ISM-0474, 1761, 1762" is one row citing three controls.
+    for match in re.finditer(r"ISM-(\d+)((?:,\s*\d+)*)", measured):
+        documented.add(match.group(1))
+        documented.update(re.findall(r"\d+", match.group(2)))
+
+    cited = set(re.findall(r"ISM-(\d+)", (RULES / "asd_ism.yaml").read_text(encoding="utf-8")))
+    for source in (root / "pqc_scan").glob("*.py"):
+        cited.update(re.findall(r"ISM-(\d+)", source.read_text(encoding="utf-8")))
+
+    problems = [
+        f"ISM-{number} is cited by the tool but missing from docs/ism-coverage.md"
+        for number in sorted(cited - documented)
+    ]
+    claimed = re.search(r"\*\*(\d+) controls", (root / "README.md").read_text(encoding="utf-8"))
+    if claimed is None:
+        claimed = re.search(r"(\d+) controls across", (root / "README.md").read_text(encoding="utf-8"))
+    if claimed and int(claimed.group(1)) != len(documented):
+        problems.append(
+            f"README claims {claimed.group(1)} controls; the coverage page lists {len(documented)}"
+        )
+    result = _result("rules", "coverage page matches the rules", problems)
+    if result.ok:
+        result.detail = f"{len(documented)} controls documented, all cited ones covered"
+    return result
+
+
 def check_weights_complete() -> CheckResult:
     """Every classification must have a weight, or scoring raises KeyError mid-scan."""
     weights = yaml.safe_load((RULES / "scoring.yaml").read_text())
@@ -489,6 +534,7 @@ SUITES: dict[str, list[Callable[[], Any]]] = {
         check_control_numbers, check_no_null_tokens, check_classification_tables,
         check_weights_complete, check_remediation_coverage, check_port_map_matches_probes,
         check_docs_and_metadata_agree,
+        check_coverage_doc_is_complete,
     ],
     "scoring": [
         check_weaker_crypto_never_scores_better, check_no_encryption_is_the_worst_case,

@@ -32,4 +32,5 @@ requirements.txt
 
 # Drafts and local working files that are not part of the tool.
 LINKEDIN-POST.md
-Claude outputs/
+test-plan/
+*outputs/
