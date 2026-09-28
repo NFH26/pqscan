@@ -69,6 +69,12 @@ First public release.
 
 ### Changed
 
+- **Dependency floors raised to the versions actually tested**: jinja2 3.1.6 (a security fix),
+  pydantic 2.13.5, typer 0.27.2, pytest-asyncio 1.4.0 and ruff 0.16.8. The lockfile already
+  held these; the declared minimums had not moved since the first commit.
+- **GitHub Actions updated**: checkout v7, upload-artifact v7, download-artifact v8, setup-uv
+  v10 and action-gh-release v3.
+
 - **The coverage page listed four IPsec controls as measured that the rule profile itself
   declares unobservable** (ISM-0494, 0496, 0498, 1000). They are settled in `IKE_AUTH` or
   `CREATE_CHILD_SA`, which an unauthenticated probe never reaches. Removed, and the offline
