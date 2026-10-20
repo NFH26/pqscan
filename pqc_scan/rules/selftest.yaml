@@ -53,17 +53,17 @@ cases:
       measured: true
       group_contains: mlkem
 
-  - name: "SSH classical, NTRU Prime is not ML-KEM"
+  - name: "SSH hybrid ML-KEM on github.com"
     host: github.com
     port: 22
     protocol: ssh
-    # sntrup761 is Streamlined NTRU Prime. It is quantum-resistant in practice and NOT an
-    # ASD-approved algorithm, so a scanner that reports this as hybrid is wrong.
+    # Oct 2026: github.com moved from sntrup761 (NTRU Prime, read as classical_only)
+    # to mlkem768x25519-sha256. The NTRU Prime case needs a new reference host.
     expect:
       service: ssh
-      readiness: classical_only
+      readiness: hybrid_transitional
       measured: true
-      group_contains: sntrup761
+      group_contains: mlkem
 
   # --- Protocol auto-detection ------------------------------------------------------------
   - name: "SSH on a TLS port is detected, not failed"
@@ -72,7 +72,7 @@ cases:
     protocol: null          # deliberately unset: the scanner must work it out
     expect:
       service: ssh
-      readiness: classical_only
+      readiness: hybrid_transitional   # Oct 2026: ssh.github.com now offers ML-KEM
       measured: true
 
   # --- Weak crypto OpenSSL will not negotiate ---------------------------------------------
