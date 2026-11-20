@@ -34,3 +34,5 @@ requirements.txt
 LINKEDIN-POST.md
 test-plan/
 *outputs/
+benchmark/au-universities-scope.txt
+benchmark/au-universities.csv
