@@ -79,11 +79,16 @@ Lines beginning with `#` are comments.
 
 ## Flags
 
+`pqc --help` shows only the everyday options: `--input`, `--discover`, `-y`, `-o` and
+`--details`. Everything below works the same whether or not it is listed there. `pqc scan ...`
+and `pqc ...` are the same command.
+
 ### Selecting and shaping
 
 | Flag | Effect |
 |---|---|
 | `--input FILE` | CSV or plain list of hosts |
+| `--yes`, `-y`, `--confirm-authorised` | Skip the permission question. Required when there is no terminal to ask on (CI, cron) |
 | `--protocol`, `-p` | Force the protocol for the target |
 | `--discover` | Find and measure every service on each host |
 | `--profile NAME` | Rule profile to score against (default `asd_ism`) |
@@ -96,18 +101,21 @@ Lines beginning with `#` are comments.
 | `--deep` | Also test which cipher suites each host *accepts*, not just the one it prefers. One connection per suite — slower, and the only way to find a server that leads with AES-GCM and still accepts 3DES |
 | `--no-pq-probe` | Skip the capability probe. Faster, but you lose band 3 |
 | `--timeout SECONDS` | Per operation, default 10 |
-| `--concurrency N` | Hosts in parallel, default 10 |
+| `--concurrency N` | Hosts in parallel, default 20 |
 | `--rate-limit N` | Maximum connections per second per host |
 
 ### Output
 
 | Flag | Effect |
 |---|---|
-| `--out DIR`, `-o` | Write reports into a dated subfolder of `DIR` |
+| `--out DIR`, `-o` | Write every format into a dated subfolder of `DIR` |
+| *(no `-o`)* | One HTML report in `./reports/<target>-<time>.html` |
+| `--no-report` | Write no file at all |
 | `--format LIST`, `-f` | `all` (default) or a subset of `html,csv,json,cbom,sarif,md` |
 | `--flat` | Write straight into `--out` instead of a dated subfolder |
-| `--wide` | Show every column |
-| `--explain` | Print the full score breakdown per host |
+| `--details` | The full table: scores, readiness bands, findings and recommendations, instead of one verdict per endpoint |
+| `--wide` | The full table with every column (implies `--details`) |
+| `--explain` | Print the full score breakdown per host (implies `--details`) |
 
 ### Policy gates
 
@@ -121,7 +129,8 @@ See [CI and automation](ci.md).
 
 ## Scanning responsibly
 
-- `-y` is required, and it is an assertion about authorisation, not a formality.
+- Without `-y`, PQScan names the targets and asks before it sends anything. `-y` answers
+  that question for you: it is an assertion about authorisation, not a formality.
 - `--scope-file` is the guard rail for an engagement: list the domains in the statement of work
   and anything outside it is skipped rather than scanned.
 - `--rate-limit` matters on shared infrastructure. Several public test services rate-limit, and

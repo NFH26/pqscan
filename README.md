@@ -27,30 +27,30 @@ towards your transition plan, not as an assessment, and please
 [report anything it gets wrong](https://github.com/NFH26/pqscan/issues).
 
 ```console
-$ pqc scan www.ato.gov.au -y
+$ pqc www.ato.gov.au
+Only scan systems you own or have permission to test.
+Scan www.ato.gov.au? [y/N]: y
 
- Endpoint                 Version   Key exchange                  Status         Conf risk   Auth risk
- ─────────────────────────────────────────────────────────────────────────────────────────────────────
- www.ato.gov.au:443 tls   TLSv1.3   x25519 (can: X25519MLKEM768)  3 PQ capable          80          55
+ Site             Result      What to do
+ ───────────────────────────────────────────────────────────────────────────────
+ www.ato.gov.au   Quick fix   Reorder the server's group preference so the
+                              stronger group is negotiated by default.
 
-Status: 3 supports it but does not use it
-Risk 0 = already meets the profile, 100 = worst. Lower is better.
+Quick fix = supports post-quantum but does not use it, usually one setting
 
-Recommendations
-  #   Effort        Do this                                                 Applies to
-  1   config        Enable a post-quantum key exchange. On TLS 1.3 add ...   www.ato.gov.au:443 (tls)
-  2   config        Reorder the server's group preference so the strong...   www.ato.gov.au:443 (tls)
-  3   certificate   At next renewal, move to the P-384 curve.                www.ato.gov.au:443 (tls)
+Full report: reports/www.ato.gov.au-20261121-093000.html
 ```
 
-Read the Status column first. **3 PQ capable** means the server already supports a post-quantum
-key exchange and negotiates a classical one anyway. It is one configuration line from compliant,
-and no tool I am aware of reports that: a scanner that reads only the negotiated group cannot
-see it.
+**Quick fix** means the server already supports a post-quantum key exchange and negotiates a
+classical one anyway. It is one configuration line from compliant, and no tool I am aware of
+reports that: a scanner that reads only the negotiated group cannot see it.
+
+Every result is one of six plain verdicts: **Ready**, **Almost ready**, **Quick fix**,
+**Not ready**, **Unsafe today** or **Not measured**. Add `--details` for the scores, readiness
+bands and every finding behind them.
 
 That example is a single TLS handshake against a public website, which is what any browser does
-on every visit. Measuring an estate is different, and PQScan will not do it without
-`--confirm-authorised`.
+on every visit. PQScan still asks first, every time, unless you pass `-y`.
 
 ---
 
@@ -81,7 +81,7 @@ Requires Python 3.11 or newer. Nothing else, not even OpenSSL.
 
 ```bash
 pipx install pqscan      # or: uv tool install pqscan
-pqc doctor
+pqc example.com
 ```
 
 Plain `pip install pqscan` works too, inside a virtual environment.
@@ -97,25 +97,19 @@ cd pqscan
 ## Common commands
 
 ```bash
-# one endpoint
-pqc scan example.com -y
-
-# find what a host is running, then measure every service on it
-pqc scan example.com -y --discover
-
-# a whole estate, with every report format
-pqc scan --input hosts.csv -y -o reports/
-
-# a specific protocol, without writing a host file
-pqc scan example.com -y --protocol domain
-pqc scan vpn.example.com:500 -y
-
-# check the tool itself against endpoints with a known answer
-pqc selftest
+pqc example.com                        # one site; asks before it scans
+pqc example.com --details              # scores, bands and every finding
+pqc example.com --discover             # also check the host's mail, SSH and VPN
+pqc --input hosts.csv -y               # many hosts, no question (for scripts and CI)
+pqc --input hosts.csv -y -o reports/   # every report format: HTML, CSV, JSON, CBOM, SARIF, Markdown
 ```
 
-`-y` is short for `--confirm-authorised`. It is deliberately required: **only scan what you are
-authorised to scan.**
+Each run writes one HTML report to `./reports` unless you pass `-o`. `pqc scan ...` still works
+exactly as before. Options for CI gates, scope files and rate limits are in
+[Scanning](docs/scanning.md).
+
+**Only scan what you are authorised to scan.** `-y` (or `--confirm-authorised`) answers the
+permission question for you, so use it only when that is true for every target.
 
 ## What it measures
 

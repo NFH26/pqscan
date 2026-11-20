@@ -42,8 +42,8 @@ Issues = "https://github.com/NFH26/pqscan/issues"
 Changelog = "https://github.com/NFH26/pqscan/blob/main/CHANGELOG.md"
 
 [project.scripts]
-pqscan = "pqc_scan.cli:app"
-pqc = "pqc_scan.cli:app"
+pqscan = "pqc_scan.cli:main"
+pqc = "pqc_scan.cli:main"
 
 [project.optional-dependencies]
 dev = [

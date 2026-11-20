@@ -4,10 +4,11 @@ import datetime
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import typer
 import yaml
@@ -35,7 +36,15 @@ from pqc_scan.verify import (
     verify_hosts,
 )
 
-app = typer.Typer(help="ASD PQC Readiness Scanner (LATICE - Locate Phase)")
+app = typer.Typer(
+    help="Check whether your servers are ready for post-quantum cryptography, against the "
+         "Australian ISM.\n\nExample:  pqc example.com",
+    context_settings={"help_option_names": ["-h", "--help"]},
+    no_args_is_help=True,
+)
+# What `pqc example.com` means: anything that is not one of these is a scan.
+COMMANDS = frozenset({"scan", "doctor", "report", "verify", "selftest"})
+
 console = Console()
 def _tool_version() -> str:
     """The installed package version, so it cannot drift from pyproject.toml.
@@ -140,6 +149,30 @@ def _write_parents(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
+def _ask_permission(targets: list[Target], input_file: str | None) -> bool:
+    """Ask before scanning, instead of failing on a flag the user has never heard of.
+
+    Consent is still an explicit act. Without a terminal to ask on (CI, a cron job) the
+    old rule stands: -y or nothing is scanned.
+    """
+    if len(targets) == 1:
+        what = targets[0].hostname
+    elif input_file:
+        what = f"{len(targets)} hosts from {Path(input_file).name}"
+    else:
+        what = f"{len(targets)} hosts"
+    if not sys.stdin.isatty():
+        console.print(
+            "[bold red]Error: add -y to confirm you are allowed to scan these targets.[/bold red]"
+        )
+        sys.exit(1)
+    console.print("[dim]Only scan systems you own or have permission to test.[/dim]")
+    if not typer.confirm(f"Scan {what}?", default=False):
+        console.print("Cancelled. Nothing was scanned.")
+        sys.exit(1)
+    return True
+
+
 @app.command()
 def doctor():
     """Report what this installation can do."""
@@ -168,57 +201,68 @@ def doctor():
     # start one. The scoring legend belongs with a score, and printing it here trained the
     # reader to skip the line that carries it.
     console.print(
-        f"\n[dim]Ready. Try:[/dim]  {_command_name()} scan example.com --confirm-authorised"
+        f"\n[dim]Ready. Try:[/dim]  {_command_name()} example.com"
     )
 
 
-@app.command()
+@app.command(epilog="More options (CI gates, scope files, rate limits, other formats): "
+             "https://github.com/NFH26/pqscan/blob/main/docs/scanning.md")
 def scan(
-    target: str = typer.Argument(None, help="Single host to scan (e.g. example.com.au)"),
-    input_file: str = typer.Option(None, "--input", help="CSV or text file of hosts"),
+    target: str = typer.Argument(None, help="Website or host to check, e.g. example.com.au"),
+    input_file: str = typer.Option(None, "--input", help="A CSV or text file listing many hosts"),
     protocol: str = typer.Option(
-        None, "--protocol", "-p",
+        None, "--protocol", "-p", hidden=True,
         help="Force the protocol for the target: tls, ssh, ipsec, domain, or starttls:smtp",
     ),
     discover_services: bool = typer.Option(
         False, "--discover",
-        help="Find which services each host is running, then measure every one",
+        help="Also find and check the host's other services (mail, SSH, VPN)",
     ),
-    operator: str = typer.Option(None, "--operator", help="Who ran the scan (defaults to the OS user)"),
-    engagement: str = typer.Option(None, "--engagement", help="Engagement or ticket reference (defaults to a dated one)"),
-    profile: str = typer.Option("asd_ism", "--profile", help="Rule profile to load"),
-    concurrency: int = 20,
-    timeout: float = 10.0,
-    rate_limit: float = typer.Option(10.0, "--rate-limit", help="Maximum scan requests per second"),
-    no_pq_probe: bool = False,
-    verbose: bool = typer.Option(False, "--verbose", help="Print full exception traces for failures"),
-    explain: bool = typer.Option(False, "--explain", help="Print detailed score breakdowns"),
-    wide: bool = typer.Option(False, "--wide", help="Show every column, for wide terminals"),
-    deep: bool = typer.Option(False, "--deep", help="Also test which cipher suites each host ACCEPTS, not just prefers"),
-    fail_on_score: int | None = typer.Option(None, "--fail-on-score", help="Exit 1 when either score exceeds N"),
-    fail_on_class: str | None = typer.Option(None, "--fail-on-class", help="Exit 1 when a chain has this class"),
-    require_hybrid_kex: bool = typer.Option(False, "--require-hybrid-kex", help="Exit 1 when hybrid KEX is not supported"),
-    cache_dir: str = typer.Option(".pqc_cache", "--cache-dir", help="Directory for scan cache"),
-    scope_file: str | None = typer.Option(None, "--scope-file", help="Allowed hostnames or domain suffixes"),
-    confirm_authorised: bool = typer.Option(False, "--confirm-authorised", "-y", help="I confirm I am authorised to scan every target"),
-    out_dir: str = typer.Option(None, "--out", "-o", help="Directory to write reports into"),
+    operator: str = typer.Option(None, "--operator", hidden=True, help="Who ran the scan (defaults to the OS user)"),
+    engagement: str = typer.Option(None, "--engagement", hidden=True, help="Engagement or ticket reference (defaults to a dated one)"),
+    profile: str = typer.Option("asd_ism", "--profile", hidden=True, help="Rule profile to load"),
+    concurrency: Annotated[int, typer.Option("--concurrency", hidden=True)] = 20,
+    timeout: Annotated[float, typer.Option("--timeout", hidden=True)] = 10.0,
+    rate_limit: float = typer.Option(10.0, "--rate-limit", hidden=True, help="Maximum scan requests per second"),
+    no_pq_probe: Annotated[bool, typer.Option("--no-pq-probe", hidden=True)] = False,
+    verbose: bool = typer.Option(False, "--verbose", hidden=True, help="Print full exception traces for failures"),
+    explain: bool = typer.Option(False, "--explain", hidden=True, help="Print detailed score breakdowns"),
+    wide: bool = typer.Option(False, "--wide", hidden=True, help="Show every column, for wide terminals"),
+    deep: bool = typer.Option(False, "--deep", hidden=True, help="Also test which cipher suites each host ACCEPTS, not just prefers"),
+    fail_on_score: int | None = typer.Option(None, "--fail-on-score", hidden=True, help="Exit 1 when either score exceeds N"),
+    fail_on_class: str | None = typer.Option(None, "--fail-on-class", hidden=True, help="Exit 1 when a chain has this class"),
+    require_hybrid_kex: bool = typer.Option(False, "--require-hybrid-kex", hidden=True, help="Exit 1 when hybrid KEX is not supported"),
+    cache_dir: str = typer.Option(".pqc_cache", "--cache-dir", hidden=True, help="Directory for scan cache"),
+    scope_file: str | None = typer.Option(None, "--scope-file", hidden=True, help="Allowed hostnames or domain suffixes"),
+    confirm_authorised: bool = typer.Option(
+        False, "--yes", "-y", "--confirm-authorised",
+        help="Skip the permission question: you confirm you may scan every target",
+    ),
+    out_dir: str = typer.Option(
+        None, "--out", "-o",
+        help="Folder for every report format. Without it, one HTML report goes in ./reports",
+    ),
     flat: bool = typer.Option(
-        False, "--flat", help="Write straight into --out instead of a dated subfolder per run"
+        False, "--flat", hidden=True, help="Write straight into --out instead of a dated subfolder per run"
     ),
     formats: str = typer.Option(
-        None, "--format", "-f",
+        None, "--format", "-f", hidden=True,
         help="Which formats to write: all (default), or a comma-separated subset of "
              "html, csv, json, cbom, sarif, md",
     ),
     report_dir: str = typer.Option(None, "--report", hidden=True, help="Deprecated alias for --out"),
     json_out: str = typer.Option(None, "--json", hidden=True, help="Deprecated: use --out with --format json"),
-    cbom_out: str = typer.Option(None, "--cbom", hidden=True, help="Deprecated: use --out with --format cbom")
+    cbom_out: str = typer.Option(None, "--cbom", hidden=True, help="Deprecated: use --out with --format cbom"),
+    details: Annotated[bool, typer.Option(
+        "--details", help="Show the full table: scores, readiness bands and every finding",
+    )] = False,
+    no_report: Annotated[bool, typer.Option(
+        "--no-report", hidden=True, help="Do not write the default HTML report",
+    )] = False,
 ):
-    """Measure endpoints against the ASD ISM and say what to change.
+    """Check endpoints against the ASD ISM and say what to change.
 
-    TLS, SSH, IPsec (IKEv2), STARTTLS, DNS over TLS and a domain's email and web controls.
-    The protocol is chosen from the port, overridden by --protocol or a CSV protocol column,
-    and corrected by what the service actually says when it answers.
+    Covers TLS, SSH, IPsec, mail servers (STARTTLS) and a domain's email and web settings.
     """
     operator = operator or os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
     # UTC, so a scan run at 23:00 Brisbane and one at 09:00 UTC the next day do not land in
@@ -226,9 +270,8 @@ def scan(
     engagement = engagement or (
         f"ad-hoc-{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d')}"
     )
-    if not confirm_authorised:
-        console.print("[bold red]Error: You must provide --confirm-authorised to scan these targets.[/bold red]")
-        sys.exit(1)
+    # The plain view is the default. --wide and --explain only make sense on the full table.
+    simple = not (details is True or wide is True or explain is True)
     # No OpenSSL check here on purpose. Scanning never uses the binary - the group probe is
     # native Python - so a notice about it on every scan is a warning the reader learns to
     # ignore. `pqc doctor` reports the capability and `pqc verify`, which does need it,
@@ -310,6 +353,10 @@ def scan(
                 skipped_scope.append(candidate.hostname)
         targets = allowed
 
+    # Consent comes before anything touches the network, discovery included.
+    if targets and confirm_authorised is not True:
+        confirm_authorised = _ask_permission(targets, input_file)
+
     if discover_services and targets:
         # Replace each host with whatever it is actually running. The ports an operator
         # forgets to list are the ones still running TLS 1.0 or an SSH daemon nobody owns,
@@ -369,10 +416,14 @@ def scan(
         sys.exit(2)
 
     noun = "target" if len(targets) == 1 else "targets"
-    console.print(
-        f"[bold blue]Scope Notice:[/bold blue] Operator {operator} initiating scan for "
-        f"Engagement {engagement} ({len(targets)} {noun})."
-    )
+    if simple:
+        what = targets[0].hostname if len(targets) == 1 else f"{len(targets)} endpoints"
+        console.print(f"[dim]Checking {what} ...[/dim]")
+    else:
+        console.print(
+            f"[bold blue]Scope Notice:[/bold blue] Operator {operator} initiating scan for "
+            f"Engagement {engagement} ({len(targets)} {noun})."
+        )
 
     try:
         engine = RuleEngine(profile)
@@ -454,7 +505,7 @@ def scan(
         }, handle)
     reporter = Reporter(
         findings, global_certs, engine.profile_name, explain=explain, wide=wide, engine=engine,
-        metadata=report_metadata,
+        metadata=report_metadata, simple=simple,
     )
     reporter.write_terminal()
 
@@ -493,6 +544,22 @@ def scan(
             f"\n[green]Wrote {len(written)} file(s) to {folder}/[/green]  "
             + "[dim]" + ", ".join(p.name for p in written) + "[/dim]"
         )
+
+    if not destination and not legacy and no_report is not True:
+        # One file a person can open, without having to know that -o exists.
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", target or Path(input_file or "scan").stem).strip("-") or "scan"
+        stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d-%H%M%S")
+        default_report = Path("reports") / f"{stem}-{stamp}.html"
+        try:
+            default_report.parent.mkdir(parents=True, exist_ok=True)
+            FORMATS["html"].writer(
+                default_report, findings, global_certs, engine, report_metadata, reporter
+            )
+            console.print(f"\nFull report: [bold]{default_report}[/bold]")
+        except OSError as error:
+            console.print(f"[yellow]Could not write the report to {default_report}: {error}[/yellow]")
+    if simple:
+        console.print("[dim]More detail: add --details. All formats: add -o FOLDER.[/dim]")
 
     if json_out:
         _write_parents(json_out)
@@ -540,7 +607,7 @@ def scan(
         sys.exit(1)
 
 
-@app.command()
+@app.command(hidden=True)
 def report(
     out_dir: str = typer.Option("./reports", "--out-dir", "--out", help="Output directory"),
     format: str = typer.Option(
@@ -586,7 +653,7 @@ def report(
     )
 
 
-@app.command()
+@app.command(hidden=True)
 def verify(
     input_file: str = typer.Option("hosts.csv", "--input"),
     scan_file: str = typer.Option(".pqc_cache/last_run.json", "--scan"),
@@ -637,7 +704,7 @@ def verify(
             writer.writerows(rows)
     raise typer.Exit(code=1 if differences else 0)
 
-@app.command()
+@app.command(hidden=True)
 def selftest(
     timeout: float = typer.Option(10.0, "--timeout", help="Seconds per endpoint"),
     report_dir: str = typer.Option("reports/selftest", "--report", help="Where to write the reports"),
@@ -776,9 +843,19 @@ def selftest(
     raise typer.Exit(1 if failed or (strict and unreachable) else 0)
 
 
+def main() -> None:
+    """Entry point. `pqc example.com` is a scan, so the word "scan" is optional."""
+    args = sys.argv[1:]
+    if args and args[0] not in COMMANDS and args[0] not in {
+        "-h", "--help", "--install-completion", "--show-completion",
+    }:
+        sys.argv.insert(1, "scan")
+    app(prog_name=_command_name())
+
+
 if __name__ == "__main__":
     try:
-        app()
+        main()
     except typer.Exit:
         raise
     except Exception as e:

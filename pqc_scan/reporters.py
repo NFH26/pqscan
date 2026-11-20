@@ -66,7 +66,7 @@ def _anchor(finding: HostFinding) -> str:
 
 
 class Reporter:
-    def __init__(self, findings: list[HostFinding], certs: dict[str, CertificateData], profile_name: str, explain: bool = False, metadata: dict | None = None, wide: bool = False, engine=None):
+    def __init__(self, findings: list[HostFinding], certs: dict[str, CertificateData], profile_name: str, explain: bool = False, metadata: dict | None = None, wide: bool = False, engine=None, simple: bool = False):
         self.findings = findings
         self.certs = certs
         self.profile_name = profile_name
@@ -75,6 +75,9 @@ class Reporter:
         self.wide = wide
         # Optional: without it the reports still render, just without advice.
         self.engine = engine
+        # The default terminal view: one plain verdict and one fix per endpoint. The scores,
+        # bands and findings table are still there behind --details and in every file report.
+        self.simple = simple
 
     # Status palette. Reserved for state, never reused as a series colour, and always
     # rendered beside a text label so meaning never rests on hue alone.
@@ -187,10 +190,126 @@ class Reporter:
         return Panel(grid, title=f"[bold]PQC Readiness[/bold]  [dim]profile {self.profile_name}[/dim]",
                      border_style="blue", padding=(1, 2))
 
+
+    # The plain-language view. Each verdict is a band (or a domain or unmeasured row) put in
+    # words a manager can act on without reading the scoring page.
+    VERDICTS: ClassVar = {
+        0: ("Unsafe today", "bold red"),
+        1: ("Not ready", "red"),
+        2: ("Not ready", "dark_orange"),
+        3: ("Quick fix", "yellow"),
+        4: ("Almost ready", "green"),
+        5: ("Ready", "bold green"),
+    }
+    VERDICT_ORDER: ClassVar = (
+        "Unsafe today", "Not ready", "Quick fix", "Almost ready", "Ready", "Email/web", "Not measured",
+    )
+    VERDICT_MEANING: ClassVar = {
+        "Unsafe today": "weak or no encryption now, before any quantum computer",
+        "Not ready": "classical crypto only",
+        "Quick fix": "supports post-quantum but does not use it, usually one setting",
+        "Almost ready": "uses post-quantum, but the ISM wants ML-KEM-1024 by 2030",
+        "Ready": "meets the ISM profile for key exchange",
+        "Email/web": "SPF, DMARC, MTA-STS and HSTS checks, no post-quantum verdict",
+        "Not measured": "could not connect, never counted as a pass",
+    }
+    NOT_MEASURED_REASONS: ClassVar = {
+        "dns_failure": "Could not find this host (DNS).",
+        "timeout": "No answer before the timeout.",
+    }
+
+    @staticmethod
+    def _site_cell(finding: HostFinding) -> str:
+        """The name a person would type: a bare hostname for an ordinary website."""
+        if finding.service == "domain" or finding.target.port == 0:
+            return f"{finding.target.hostname} [dim](email/web)[/dim]"
+        protocol = finding.target.protocol or ""
+        label = protocol if protocol.startswith("starttls:") else finding.service
+        if finding.target.port == 443 and label == "tls":
+            return finding.target.hostname
+        return f"{finding.target.hostname}:{finding.target.port} [dim]({label})[/dim]"
+
+    def _verdict(self, finding: HostFinding) -> tuple[str, str, str]:
+        """(group, label, style) for one endpoint."""
+        if finding.pq_readiness == "not_applicable":
+            failures = len(finding.validation_failures)
+            label = "Email/web ok" if not failures else f"Email/web: {failures} issue{'s' if failures > 1 else ''}"
+            return "Email/web", label, "green" if not failures else "yellow"
+        if finding.readiness_band is None:
+            return "Not measured", "Not measured", "dim"
+        label, style = self.VERDICTS.get(finding.readiness_band, ("Not ready", "red"))
+        return label, label, style
+
+    @staticmethod
+    def _first_sentence(text: str) -> str:
+        head = text.split(". ")[0].strip()
+        return head if head.endswith(".") else head + "."
+
+    def _next_step(self, finding: HostFinding) -> str:
+        """The single most useful thing to do for this endpoint."""
+        if finding.pq_readiness != "not_applicable" and finding.readiness_band is None:
+            reason = self.NOT_MEASURED_REASONS.get(finding.not_testable_reason or "")
+            if reason:
+                return reason
+            if finding.handshake_errors:
+                detail = finding.handshake_errors[0]
+                return "Could not connect: " + (detail if len(detail) <= 70 else detail[:67] + "...")
+            return "Could not measure this endpoint."
+        if self.engine is None:
+            return ""
+        actions = actions_for(finding, self.engine)
+        if not actions:
+            return ""
+        # Band 3 is the case the tool exists to catch: the server can already do it, so
+        # "reorder the preference" is the right advice, not "enable post-quantum".
+        if finding.readiness_band == 3:
+            preferred = [a for a in actions if a.trigger.startswith("capability_exceeds")]
+            if preferred:
+                return self._first_sentence(preferred[0].action)
+        # Bands 0 and 1 are weak today. Fixing that (old TLS, broken ciphers) comes before
+        # adding post-quantum, and TLS 1.2 cannot carry a post-quantum key exchange anyway.
+        if finding.readiness_band in (0, 1):
+            today = [a for a in actions if a.trigger != finding.pq_readiness]
+            if today:
+                return self._first_sentence(today[0].action)
+        return self._first_sentence(actions[0].action)
+
+    def _write_simple(self, console: Console) -> None:
+        rows = []
+        for finding in self.findings:
+            group, label, style = self._verdict(finding)
+            rows.append((self.VERDICT_ORDER.index(group), group, label, style, finding))
+        rows.sort(key=lambda row: (row[0], row[4].target.hostname, row[4].target.port))
+
+        table = Table(box=box.SIMPLE_HEAD, header_style="bold", pad_edge=False, expand=True)
+        table.add_column("Site", no_wrap=True, overflow="ellipsis", max_width=40)
+        table.add_column("Result", no_wrap=True)
+        table.add_column("What to do", overflow="fold", ratio=1)
+        for _, _, label, style, finding in rows:
+            table.add_row(self._site_cell(finding), f"[{style}]{label}[/{style}]", self._next_step(finding))
+        console.print(table)
+
+        counts = Counter(row[1] for row in rows)
+        total = len(rows)
+        parts = [f"{counts[group]} {group.lower()}" for group in self.VERDICT_ORDER if counts[group]]
+        noun = "endpoint" if total == 1 else "endpoints"
+        if total > 1:
+            console.print(f"[bold]{total} {noun} checked:[/bold] " + ", ".join(parts))
+        meanings = [
+            f"[bold]{group}[/bold] = {self.VERDICT_MEANING[group]}"
+            for group in self.VERDICT_ORDER
+            if counts[group] and group not in ("Ready",)
+        ]
+        if meanings:
+            console.print("[dim]" + "\n".join(meanings) + "[/dim]")
+
     def write_terminal(self) -> None:
         # Auto-detect the terminal width. A hardcoded width is what made the borders interleave
         # with wrapped text on narrower terminals.
         console = Console()
+        if self.simple:
+            self._write_simple(console)
+            return
         width = console.width
         measured = [f for f in self.findings if f.confidentiality_score is not None or f.authentication_score is not None]
         # Determinable means "we reached a readiness verdict", not "we read a group name".

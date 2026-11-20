@@ -10,6 +10,22 @@ without any code changing.
 
 ### Changed
 
+- **Simpler to use.** `pqc example.com` is a scan; the word `scan` is optional and still works.
+- **Asks for permission instead of failing.** Without `-y`, PQScan names the targets and asks
+  before anything touches the network, discovery included. With no terminal to ask on (CI,
+  cron), `-y` is still required, exactly as before.
+- **One plain verdict per endpoint.** The default view is one row per site: Ready, Almost
+  ready, Quick fix, Not ready, Unsafe today, Not measured or the email/web result, with the
+  single most useful fix. The scores, readiness bands, findings and recommendations table are
+  unchanged behind `--details` (and `--wide` or `--explain`).
+- **An HTML report by default.** Without `-o`, each run writes one HTML report to
+  `./reports/<target>-<time>.html`. `-o DIR` still writes every format. `--no-report` turns
+  the default file off.
+- **Expert options are hidden from `--help`**, not removed: `--protocol`, `--scope-file`,
+  `--rate-limit`, `--concurrency`, `--timeout`, `--deep`, the CI gates, `--format` and the
+  rest still work and are documented in `docs/scanning.md`. `report`, `verify` and `selftest`
+  are hidden the same way. `--yes` is a new alias for `-y`.
+
 - **New `pq_readiness` value: `not_applicable`.** Domain rows (SPF, DMARC, MTA-STS, HSTS) used
   to carry `unknown`, the same value as an endpoint the scanner could not measure. They now
   carry `not_applicable`, in every output. A domain whose DNS lookups failed is still
