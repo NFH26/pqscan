@@ -120,7 +120,8 @@ def test_domain_findings_carry_no_confidentiality_score(monkeypatch):
     # number here would imply a measurement that was never made.
     finding = _score(DomainObservation(domain="example.gov.au"), monkeypatch)
     assert finding.confidentiality_score is None
-    assert finding.pq_readiness == "unknown"
+    # Not "unknown": that means "could not measure", and reports counted it as a failed scan.
+    assert finding.pq_readiness == "not_applicable"
 
 
 def test_dns_failure_is_reported_as_not_testable(monkeypatch):
@@ -130,6 +131,8 @@ def test_dns_failure_is_reported_as_not_testable(monkeypatch):
     ), monkeypatch)
     assert finding.not_testable_reason == "dns_failure"
     assert finding.authentication_score is None
+    # This one really was not measured, so it keeps the value that says so.
+    assert finding.pq_readiness == "unknown"
 
 
 def test_a_failed_lookup_is_not_reported_as_a_missing_record(monkeypatch):

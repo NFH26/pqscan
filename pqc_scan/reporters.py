@@ -85,6 +85,7 @@ class Reporter:
         "hybrid_transitional": ("Hybrid (transitional)", "warning"),
         "classical_only": ("Classical only", "critical"),
         "unknown": ("Not determined", "muted"),
+        "not_applicable": ("Email/web only", "muted"),
     }
 
 
@@ -95,9 +96,25 @@ class Reporter:
         "hybrid_transitional": ("HYBRID", "yellow"),
         "classical_only": ("CLASSICAL", "red"),
         "unknown": ("UNKNOWN", "dim"),
+        "not_applicable": ("EMAIL/WEB", "cyan"),
     }
     # Worst first: the host needing attention is the first thing read.
-    READINESS_ORDER: ClassVar = ("classical_only", "hybrid_transitional", "pure_pq_approved", "unknown")
+    READINESS_ORDER: ClassVar = (
+        "classical_only", "hybrid_transitional", "pure_pq_approved", "unknown", "not_applicable",
+    )
+
+    @staticmethod
+    def _readiness_key(finding: HostFinding) -> str:
+        return finding.pq_readiness if finding.pq_readiness in Reporter.READINESS_STYLE else "unknown"
+
+    @staticmethod
+    def _email_web_result(finding: HostFinding) -> tuple[str, tuple | None]:
+        """What a domain row shows where a TLS row shows its readiness: the outcome of the
+        email and web checks, coloured by the authentication risk they produced."""
+        failures = len(finding.validation_failures)
+        text = "email/web ok" if not failures else f"email/web {failures} issue{'s' if failures > 1 else ''}"
+        score = finding.authentication_score
+        return text, (_risk_band(score) if score is not None else None)
 
     @staticmethod
     def _short_finding(name: str) -> str:
@@ -150,6 +167,10 @@ class Reporter:
 
     def _status_cell(self, finding: HostFinding, fallback_style: str, fallback_label: str) -> str:
         """One cell carrying both the band and what it means."""
+        if finding.pq_readiness == "not_applicable":
+            text, band = self._email_web_result(finding)
+            style = band[2] if band else "dim"
+            return f"[{style}]{text}[/{style}]"
         if finding.readiness_band is None:
             return f"[{fallback_style}]{fallback_label}[/{fallback_style}]"
         style = self.BAND_STYLE.get(finding.readiness_band, "white")
@@ -175,13 +196,14 @@ class Reporter:
         # Determinable means "we reached a readiness verdict", not "we read a group name".
         # A TLS 1.2 host has no key exchange group we can name and is still definitively
         # classical, so counting group names understated how much the scan actually resolved.
-        determinable_groups = sum(f.pq_readiness != "unknown" for f in self.findings)
+        keys = {id(f): self._readiness_key(f) for f in self.findings}
+        unmeasured = sum(key == "unknown" for key in keys.values())
         conf_scores = [f.confidentiality_score for f in measured if f.confidentiality_score is not None]
         auth_scores = [f.authentication_score for f in measured if f.authentication_score is not None]
         conf_ready = sum(score == 0 for score in conf_scores)
         auth_ready = sum(score == 0 for score in auth_scores)
         readiness_counts = {
-            readiness: sum(f.pq_readiness == readiness for f in self.findings)
+            readiness: sum(key == readiness for key in keys.values())
             for readiness in self.READINESS_ORDER
         }
         certificate_hosts = [f for f in self.findings if f.certificate_fingerprints]
@@ -210,7 +232,7 @@ class Reporter:
         average_auth = f"{sum(auth_scores) / len(auth_scores):.1f}" if auth_scores else "n/a"
         readiness_summary = "  ".join(
             f"[{self.READINESS_STYLE[name][1]}]{self.READINESS_STYLE[name][0]} {count}[/{self.READINESS_STYLE[name][1]}]"
-            for name, count in readiness_counts.items() if count
+            for name, count in readiness_counts.items() if count and name != "not_applicable"
         ) or "[dim]none[/dim]"
 
         # The summary says only what is true at the scale you scanned. A distribution, an
@@ -218,7 +240,6 @@ class Reporter:
         # one host they repeat the row below them in a way that reads as noise, and noise in a
         # compliance tool trains people to skim past the part that matters.
         total = len(self.findings)
-        unmeasured = total - determinable_groups
         tiles: list[tuple[tuple[str, str], tuple[str, str] | None]] = []
         if total > 1:
             services = Counter(f.service for f in self.findings)
@@ -260,7 +281,7 @@ class Reporter:
         if self.metadata.get("scope_file"):
             tiles.append((("Scope file", str(self.metadata.get("scope_file"))), None))
 
-        self._summary_stats = {"tiles": tiles}
+        self._summary_stats = {"tiles": tiles, "unmeasured": unmeasured}
         console.print(self._summary_panel(self._summary_stats))
 
         # Narrow terminals drop the optional columns rather than wrapping into unreadable rows.
@@ -285,13 +306,12 @@ class Reporter:
             table.add_column("Findings", no_wrap=True, overflow="ellipsis", ratio=1, min_width=12)
 
         def sort_key(finding: HostFinding):
-            readiness = finding.pq_readiness if finding.pq_readiness in self.READINESS_ORDER else "unknown"
-            return (self.READINESS_ORDER.index(readiness), -(finding.confidentiality_score or -1))
+            return (self.READINESS_ORDER.index(keys[id(finding)]), -(finding.confidentiality_score or -1))
 
         ordered = sorted(self.findings, key=sort_key)
         previous_readiness = None
         for finding in ordered:
-            readiness = finding.pq_readiness if finding.pq_readiness in self.READINESS_ORDER else "unknown"
+            readiness = keys[id(finding)]
             if previous_readiness is not None and readiness != previous_readiness:
                 table.add_section()
             previous_readiness = readiness
@@ -336,8 +356,10 @@ class Reporter:
             f"[{self.BAND_STYLE[band]}]{band}[/{self.BAND_STYLE[band]}] {text}"
             for band, text in self.BAND_LEGEND if band in present
         )
-        if any(f.readiness_band is None for f in self.findings):
+        if "unknown" in keys.values():
             legend += "  [dim]UNKNOWN not measured[/dim]"
+        if "not_applicable" in keys.values():
+            legend += "  [dim]email/web = domain row, DNS and HSTS controls only, no PQ verdict[/dim]"
         console.print(
             f"[dim]Status:[/dim] {legend}"
             "\n[dim]Risk 0 = already meets the profile, 100 = worst. Lower is better.[/dim]"
@@ -450,12 +472,20 @@ class Reporter:
         conf = [f.confidentiality_score for f in self.findings if f.confidentiality_score is not None]
         auth = [f.authentication_score for f in self.findings if f.authentication_score is not None]
 
+        keys = {id(f): self._readiness_key(f) for f in self.findings}
+        # A domain row has no key exchange, so it is neither in the readiness mix nor in the
+        # number the mix is a percentage of. Dividing by every row understated "% using PQ",
+        # which is exactly the figure a published benchmark leads with.
+        domain_rows = sum(k == "not_applicable" for k in keys.values())
+        pq_total = total - domain_rows
         readiness_rows = []
         for key, (label, status) in self.READINESS_HTML.items():
-            count = sum(f.pq_readiness == key for f in self.findings)
+            if key == "not_applicable":
+                continue
+            count = sum(k == key for k in keys.values())
             readiness_rows.append({
                 "key": key, "label": label, "color": self.STATUS[status], "count": count,
-                "pct": round(count / total * 100) if total else 0,
+                "pct": round(count / pq_total * 100) if pq_total else 0,
             })
 
         def buckets(scores):
@@ -479,21 +509,27 @@ class Reporter:
         order = {key: index for index, key in enumerate(self.READINESS_ORDER)}
         ordered = sorted(
             self.findings,
-            key=lambda f: (order.get(f.pq_readiness, 9), -(f.confidentiality_score or -1)),
+            key=lambda f: (order.get(keys[id(f)], 9), -(f.confidentiality_score or -1)),
         )
         rows = []
         for finding in ordered:
-            key = finding.pq_readiness if finding.pq_readiness in self.READINESS_HTML else "unknown"
+            key = keys[id(finding)]
             label, status = self.READINESS_HTML[key]
+            color = self.STATUS[status]
+            host = f"{finding.target.hostname}:{finding.target.port}"
+            if key == "not_applicable":
+                label, band = self._email_web_result(finding)
+                color = self.STATUS[band[3]] if band else color
+                host = finding.target.hostname
             items = _display_findings(finding)
             rows.append({
-                "host": f"{finding.target.hostname}:{finding.target.port}",
+                "host": host,
                 "service": finding.service,
                 "anchor": _anchor(finding),
                 "tls": finding.version or finding.tls_version or (finding.max_supported_tls if finding.obsolete_tls_only else "n/a"),
                 "group": "obsolete TLS" if finding.obsolete_tls_only else finding.negotiated_group,
                 "capability": finding.best_supported_group if finding.capability_exceeds_default else None,
-                "readiness_key": key, "readiness_label": label, "readiness_color": self.STATUS[status],
+                "readiness_key": key, "readiness_label": label, "readiness_color": color,
                 "conf": finding.confidentiality_score if finding.confidentiality_score is not None else "n/a",
                 "auth": finding.authentication_score if finding.authentication_score is not None else "n/a",
                 "conf_color": self._band_color(finding.confidentiality_score),
@@ -529,6 +565,8 @@ class Reporter:
             },
             "summary": {
                 "total": total,
+                "pq_total": pq_total,
+                "domain_rows": domain_rows,
                 "conf_measured": len(conf),
                 "auth_measured": len(auth),
                 "readiness": {row["key"]: row["count"] for row in readiness_rows},

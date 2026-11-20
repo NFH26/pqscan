@@ -18,6 +18,32 @@ compliance report is evidence, and evidence that a later run silently replaced i
 | `sarif` | `findings.sarif` | CI and code-scanning dashboards |
 | `md` | `summary.md` | A ticket, an email, a pull request comment |
 
+## Readiness values
+
+Every row carries a `pq_readiness` value. It is the same in the JSON, CSV, Markdown and CBOM
+(`pqscan:pq-readiness`) outputs.
+
+| Value | Meaning |
+|---|---|
+| `pure_pq_approved` | Negotiates a pure post-quantum group that ASD approves |
+| `hybrid_transitional` | Negotiates a hybrid group. Approved now, not beyond 2030 |
+| `classical_only` | No post-quantum key exchange |
+| `unknown` | The scanner tried and could not measure this endpoint. Counted as "Not measured" |
+| `not_applicable` | A domain row (SPF, DMARC, MTA-STS, HSTS). There is no key exchange to judge |
+
+`unknown` and `not_applicable` are kept apart on purpose. `unknown` is a gap in the measurement.
+`not_applicable` is a measurement that worked and has no post-quantum answer. A domain row is
+`not_applicable` unless its DNS lookups failed, in which case it is `unknown`.
+
+`not_applicable` rows are left out of the readiness counts, the "Not measured" count and the
+HTML readiness percentages. In the terminal and HTML tables they show the result of the email
+and web checks (for example `email/web ok` or `email/web 2 issues`), coloured by their
+authentication risk.
+
+```bash
+jq '.findings[] | select(.pq_readiness == "unknown") | .target.hostname' findings.json
+```
+
 ## HTML
 
 Self-contained: no external requests, so opening a report does not tell anyone that you read it,

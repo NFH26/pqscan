@@ -41,6 +41,9 @@ if ! uv python find "$PYTHON_VERSION" >/dev/null 2>&1; then
     }
 fi
 
+# Tells the CLI it was started from a source checkout, so its hints say ./pqc rather than
+# the `pqc` command a PyPI install gets.
+export PQSCAN_LAUNCHER="./pqc"
 run() { uv run --quiet --project . --python "$PYTHON_VERSION" "$@"; }
 
 case "${1:-}" in

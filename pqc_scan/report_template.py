@@ -173,11 +173,12 @@ it applies to, with the service each one runs; select an endpoint to jump to its
 <h2>Readiness mix</h2>
 <div class="card">
   <div class="stack">
-    {% for row in summary.readiness_rows %}{% if row.count %}<div class="seg" style="width:{{ row.pct }}%;background:{{ row.color }}" title="{{ row.label }}: {{ row.count }} of {{ summary.total }}"></div>{% endif %}{% endfor %}
+    {% for row in summary.readiness_rows %}{% if row.count %}<div class="seg" style="width:{{ row.pct }}%;background:{{ row.color }}" title="{{ row.label }}: {{ row.count }} of {{ summary.pq_total }}"></div>{% endif %}{% endfor %}
   </div>
   <div class="legend">
     {% for row in summary.readiness_rows %}<div><span class="sw" style="background:{{ row.color }}"></span>{{ row.label }} &mdash; {{ row.count }} ({{ row.pct }}%)</div>{% endfor %}
   </div>
+  {% if summary.domain_rows %}<p class="sub" style="margin-top:10px">Percentages are of the {{ summary.pq_total }} endpoints with a key exchange. {{ summary.domain_rows }} domain row(s) checked only email and web controls and are not counted.</p>{% endif %}
 </div>
 
 <h2>Score distribution</h2>
@@ -204,6 +205,7 @@ it applies to, with the service each one runs; select an endpoint to jump to its
   <select id="readiness" aria-label="Filter by readiness">
     <option value="">All readiness states</option>
     {% for row in summary.readiness_rows %}<option value="{{ row.key }}">{{ row.label }}</option>{% endfor %}
+    {% if summary.domain_rows %}<option value="not_applicable">Domain (email/web only)</option>{% endif %}
   </select>
   <span class="sub" id="count"></span>
 </div>

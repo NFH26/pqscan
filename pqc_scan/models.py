@@ -59,7 +59,12 @@ class HostFinding(BaseModel):
     # role -> [{name, classification, in_use}]. Roles are shared across protocols:
     # key_exchange, signature, cipher, mac.
     algorithms: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
-    pq_readiness: Literal["pure_pq_approved", "hybrid_transitional", "classical_only", "unknown"] = "unknown"
+    # "unknown" means we tried and could not measure. "not_applicable" means there is no
+    # key exchange to judge at all: a domain row (SPF, DMARC, MTA-STS, HSTS). Keeping the two
+    # apart is what stops a clean DNS check from being counted as a failed scan.
+    pq_readiness: Literal[
+        "pure_pq_approved", "hybrid_transitional", "classical_only", "unknown", "not_applicable",
+    ] = "unknown"
     observations: dict[str, Any] = Field(default_factory=dict)
     rule_findings: list[str] = Field(default_factory=list)
     not_testable_reason: str | None = None

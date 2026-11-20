@@ -9,7 +9,7 @@
 #
 # `expect` keys:
 #   service        which probe should have handled it (proves protocol routing and detection)
-#   readiness      pure_pq_approved | hybrid_transitional | classical_only
+#   readiness      pure_pq_approved | hybrid_transitional | classical_only | not_applicable
 #   measured       true means a score must exist; a null score is a scanner failure
 #   findings       substrings that must appear in rule_findings or validation_failures
 #   absent         substrings that must NOT appear
@@ -218,6 +218,7 @@ cases:
     # ato.gov.au publishes -all and p=reject, so neither finding may appear.
     expect:
       service: domain
+      readiness: not_applicable
       absent: [spf_absent, spf_not_hard_fail, dmarc_absent, dmarc_policy_not_reject]
 
   - name: "Domain missing every email control"
@@ -226,4 +227,5 @@ cases:
     protocol: domain
     expect:
       service: domain
+      readiness: not_applicable
       findings: [spf_absent, dmarc_absent, mta_sts_absent]

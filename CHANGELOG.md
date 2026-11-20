@@ -6,6 +6,27 @@ versioning follows [Semantic Versioning](https://semver.org/).
 Rule-profile changes are called out separately, because a new rules version can change a score
 without any code changing.
 
+## [Unreleased]
+
+### Changed
+
+- **New `pq_readiness` value: `not_applicable`.** Domain rows (SPF, DMARC, MTA-STS, HSTS) used
+  to carry `unknown`, the same value as an endpoint the scanner could not measure. They now
+  carry `not_applicable`, in every output. A domain whose DNS lookups failed is still
+  `unknown`. Anything that filters JSON or CSV on `unknown` will now see fewer rows. See
+  `docs/outputs.md`.
+
+### Fixed
+
+- Domain rows no longer count as "Not measured" or show as UNKNOWN. A testbed run with three
+  domain rows and one dead host said "Not measured 4 of 40"; it now says 1. The table shows
+  the email and web result instead (`email/web ok`, `email/web 2 issues`).
+- The HTML readiness percentages no longer divide by domain rows, which understated the share
+  of endpoints using post-quantum key exchange.
+- After a PyPI install, `pqc doctor` said "Try: ./pqc scan". It now names the command you
+  actually have.
+- `pqc verify --run-scan` no longer calls `./pqc`, which does not exist after a PyPI install.
+
 ## [0.4.1] - unreleased
 
 ### Changed

@@ -210,9 +210,12 @@ class Scorer:
         criticality = finding.target.criticality
         auth_multiplier = auth_weights["criticality_multiplier"][criticality]
         finding.confidentiality_score = None
-        finding.pq_readiness = "unknown"
+        # Not "unknown": that value means "we could not measure this host", and every report
+        # counted these rows as failed scans. Only a domain whose lookups failed is unknown.
+        finding.pq_readiness = "not_applicable"
 
         if finding.not_testable_reason:
+            finding.pq_readiness = "unknown"
             finding.authentication_explanation = "Not measured (DNS lookups failed)."
             return
 

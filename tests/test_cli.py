@@ -157,3 +157,19 @@ def test_a_scope_file_that_excludes_everything_says_so(tmp_path, capsys, monkeyp
     assert exit_info.value.code == 2
     output = capsys.readouterr().out
     assert "scope file" in output and "example.test" in output
+
+
+@pytest.mark.parametrize(("argv0", "launcher", "expected"), [
+    ("/home/u/.local/bin/pqc", None, "pqc"),          # pipx / pip install
+    ("/home/u/.local/bin/pqscan", None, "pqscan"),
+    ("/repo/pqc_scan/cli.py", "./pqc", "./pqc"),      # source checkout via the launcher
+    ("/repo/pqc_scan/cli.py", None, "pqc"),           # python -m from an install
+])
+def test_hints_name_the_command_the_user_actually_has(monkeypatch, argv0, launcher, expected):
+    # After a PyPI install, `pqc doctor` used to say "Try: ./pqc scan", which does not exist.
+    monkeypatch.setattr(cli.sys, "argv", [argv0, "doctor"])
+    if launcher:
+        monkeypatch.setenv("PQSCAN_LAUNCHER", launcher)
+    else:
+        monkeypatch.delenv("PQSCAN_LAUNCHER", raising=False)
+    assert cli._command_name() == expected

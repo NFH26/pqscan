@@ -179,3 +179,65 @@ def test_html_report_is_self_contained_and_attests_capability(tmp_path):
     # a not-testable host is present but carries no score
     assert "dead.example" in html
     assert "Nayef" in html and "ENG-001" in html
+
+
+def _domain_row(hostname: str, **fields) -> HostFinding:
+    finding = HostFinding(target=Target(hostname=hostname, port=0), service="domain",
+                          version="domain", negotiated_group="n/a", **fields)
+    finding.pq_readiness = "unknown" if finding.not_testable_reason else "not_applicable"
+    return finding
+
+
+def _tls_row(hostname: str, readiness: str) -> HostFinding:
+    finding = HostFinding(target=Target(hostname=hostname, port=443), negotiated_group="X25519MLKEM768",
+                          confidentiality_score=20, authentication_score=10)
+    finding.pq_readiness = readiness
+    return finding
+
+
+def test_a_measured_domain_row_is_not_counted_as_unmeasured(capsys):
+    # The defect: every domain row carried "unknown", so a clean SPF/DMARC check printed as
+    # "Not measured" and UNKNOWN beside hosts the scanner genuinely could not reach.
+    findings = [_tls_row("web.example", "hybrid_transitional"),
+                _domain_row("example.gov.au", authentication_score=0)]
+    reporter = Reporter(findings, {}, "asd_ism")
+    reporter.write_terminal()
+    output = capsys.readouterr().out
+
+    assert reporter._summary_stats["unmeasured"] == 0
+    tiles = {left[0]: left[1] for left, _ in reporter._summary_stats["tiles"]}
+    tiles.update({right[0]: right[1] for _, right in reporter._summary_stats["tiles"] if right})
+    assert "Not measured" not in tiles
+    assert "UNKNOWN" not in tiles["PQ readiness"]
+    assert "UNKNOWN" not in output
+    assert "email/web ok" in output
+
+
+def test_a_domain_row_whose_dns_failed_is_counted_as_unmeasured():
+    findings = [_tls_row("web.example", "hybrid_transitional"),
+                _domain_row("example.gov.au", not_testable_reason="dns_failure")]
+    reporter = Reporter(findings, {}, "asd_ism")
+    reporter.write_terminal()
+
+    assert reporter._summary_stats["unmeasured"] == 1
+    tiles = {left[0]: left[1] for left, _ in reporter._summary_stats["tiles"]}
+    tiles.update({right[0]: right[1] for _, right in reporter._summary_stats["tiles"] if right})
+    assert tiles["Not measured"] == "[yellow]1 of 2[/yellow]"
+
+
+def test_html_readiness_percentages_leave_out_domain_rows():
+    # One hybrid host and three domain rows is 100% hybrid, not 25%. Dividing by every row
+    # understated exactly the figure a published benchmark would lead with.
+    findings = [_tls_row("web.example", "hybrid_transitional")] + [
+        _domain_row(f"d{index}.example", authentication_score=0) for index in range(3)
+    ]
+    context = Reporter(findings, {}, "asd_ism")._html_context()
+    rows = {row["key"]: row for row in context["summary"]["readiness_rows"]}
+
+    assert "not_applicable" not in rows
+    assert rows["hybrid_transitional"]["pct"] == 100
+    assert context["summary"]["pq_total"] == 1
+    assert context["summary"]["domain_rows"] == 3
+    domain = next(row for row in context["rows"] if row["readiness_key"] == "not_applicable")
+    assert domain["readiness_label"] == "email/web ok"
+    assert domain["host"] == "d0.example"

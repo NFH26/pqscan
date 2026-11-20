@@ -120,6 +120,19 @@ def _policy_failures(
             failures.append(f"{target_name}: hybrid KEX is not supported")
     return failures
 
+def _command_name() -> str:
+    """How the user started this tool, so the hints we print are ones they can paste.
+
+    A source checkout runs through the ./pqc launcher, which says so in PQSCAN_LAUNCHER. A
+    PyPI install runs the `pqc` or `pqscan` entry point, where "./pqc" does not exist.
+    """
+    launcher = os.environ.get("PQSCAN_LAUNCHER")
+    if launcher:
+        return launcher
+    name = Path(sys.argv[0]).name
+    return name if name in {"pqc", "pqscan"} else "pqc"
+
+
 def _write_parents(path: str) -> None:
     """Create the directory for an output file so --json reports/x.json just works."""
     parent = Path(path).parent
@@ -155,7 +168,7 @@ def doctor():
     # start one. The scoring legend belongs with a score, and printing it here trained the
     # reader to skip the line that carries it.
     console.print(
-        "\n[dim]Ready. Try:[/dim]  ./pqc scan example.com --confirm-authorised"
+        f"\n[dim]Ready. Try:[/dim]  {_command_name()} scan example.com --confirm-authorised"
     )
 
 
@@ -587,7 +600,10 @@ def verify(
     """Compare scanner observations with independent OpenSSL observations."""
     if run_scan:
         subprocess.run(
-            ["./pqc", "scan", "--input", input_file, "--operator", "verify", "--engagement", "verify", "--confirm-authorised"],
+            # The running interpreter, not "./pqc": after a PyPI install there is no launcher,
+            # and this is the one command that is right for both.
+            [sys.executable, "-m", "pqc_scan.cli", "scan", "--input", input_file,
+             "--operator", "verify", "--engagement", "verify", "--confirm-authorised"],
             check=True,
         )
     version_text, version = openssl_version(timeout)
