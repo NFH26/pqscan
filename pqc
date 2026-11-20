@@ -49,6 +49,8 @@ run() { uv run --quiet --project . --python "$PYTHON_VERSION" "$@"; }
 case "${1:-}" in
     test)  shift; run --extra dev pytest "$@" ;;
     lint)  shift; run --extra dev ruff check . && run --extra dev mypy pqc_scan/ ;;
+    # Checks, changelog, commit, tag, push, then waits until PyPI has it. See tools/release.py.
+    release) shift; run --extra dev python tools/release.py "$@" ;;
     setup)
         echo "Preparing an isolated environment for this tool ..."
         uv sync --project . --python "$PYTHON_VERSION" --extra dev

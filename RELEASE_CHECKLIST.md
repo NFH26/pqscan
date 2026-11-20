@@ -45,17 +45,29 @@ git log --format='%an <%ae>' | sort -u
 
 ## Every release
 
-The version comes from the git tag. There is no version number to edit anywhere.
+While you work, write what changed under `## [Unreleased]` in `CHANGELOG.md`. When you are
+ready to publish:
 
 ```bash
-./pqc test && ./pqc selftest --offline && ./pqc lint
-# add a "## [0.5.2] - <date>" section to CHANGELOG.md and commit it
-git tag -a v0.5.2 -m "PQScan 0.5.2"
-git push --follow-tags
+./pqc release            # next patch version, e.g. 0.5.1 -> 0.5.2
+./pqc release minor      # 0.5.1 -> 0.6.0
+./pqc release 0.6.0      # an exact version
+./pqc release --dry-run  # run the checks and show the plan, change nothing
 ```
 
-Between releases `pqc --version` shows something like `0.5.2.dev3+g1a2b3c4`: three commits
-after the last tag. That is expected.
+It checks that you are on main with nothing uncommitted and not behind GitHub, that the
+changelog says what changed, and that the tests, lint and offline self-test pass. Then it
+shows the commits and notes and asks once. On yes it moves the `[Unreleased]` notes under the
+new version, commits, tags, and pushes main and the tag together. Pushing the tag is what
+publishes: the release workflow builds the package, uploads it to PyPI and creates the GitHub
+release. The command waits until PyPI serves the new version and prints the links, so when it
+says done, `pipx upgrade pqscan` works.
+
+If the push is refused, the local commit and tag are undone and nothing is published.
+
+The version comes from the git tag. There is no version number to edit anywhere. Between
+releases `pqc --version` shows something like `0.5.2.dev3+g1a2b3c4`: three commits after the
+last tag. That is expected.
 
 ## First release
 
