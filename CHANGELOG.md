@@ -8,6 +8,8 @@ without any code changing.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-21
+
 ### Fixed
 
 - **AES-128 is now flagged on TLS 1.3.** The rule looked for `aes128`, which is how OpenSSL
