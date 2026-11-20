@@ -76,6 +76,7 @@ def test_simple_view_gives_one_plain_verdict_and_fix(capsys):
         _finding("capable.example", 3, rules=["capability_exceeds_default_negotiation"]),
         _finding("hybrid.example", 4, readiness="hybrid_transitional"),
         _finding("weak.example", 0, rules=["obsolete_tls"]),
+        _finding("renew.example", 1, rules=["key_size_below_preferred"]),
         _finding("gone.example", None, readiness="unknown", not_testable_reason="dns_failure"),
     ], capsys)
 
@@ -86,7 +87,9 @@ def test_simple_view_gives_one_plain_verdict_and_fix(capsys):
     # Weak today is fixed before post-quantum is even possible.
     assert "Unsafe today" in out and "Disable TLS 1.0 and 1.1" in out
     assert "Not measured" in out and "Could not find this host" in out
-    assert "4 endpoints checked" in out
+    # A certificate to renew later never outranks turning on post-quantum.
+    assert "5 endpoints checked" in out
+    assert out.count("Enable a post-quantum key exchange") == 1
     # The expert vocabulary stays behind --details.
     assert "Conf risk" not in out and "Recommendations" not in out
 

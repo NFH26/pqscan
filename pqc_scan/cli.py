@@ -559,7 +559,8 @@ def scan(
         except OSError as error:
             console.print(f"[yellow]Could not write the report to {default_report}: {error}[/yellow]")
     if simple:
-        console.print("[dim]More detail: add --details. All formats: add -o FOLDER.[/dim]")
+        hint = "More detail: add --details." + ("" if destination else " All formats: add -o FOLDER.")
+        console.print(f"[dim]{hint}[/dim]")
 
     if json_out:
         _write_parents(json_out)

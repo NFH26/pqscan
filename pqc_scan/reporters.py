@@ -269,7 +269,9 @@ class Reporter:
         # Bands 0 and 1 are weak today. Fixing that (old TLS, broken ciphers) comes before
         # adding post-quantum, and TLS 1.2 cannot carry a post-quantum key exchange anyway.
         if finding.readiness_band in (0, 1):
-            today = [a for a in actions if a.trigger != finding.pq_readiness]
+            # Only urgent problems (old TLS, broken ciphers) jump the queue. A certificate to
+            # renew some day is not more important than turning on post-quantum.
+            today = [a for a in actions if a.trigger != finding.pq_readiness and a.priority == 1]
             if today:
                 return self._first_sentence(today[0].action)
         return self._first_sentence(actions[0].action)
