@@ -46,7 +46,7 @@ def _tool_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("pqc-scan")
+        return version("pqscan")
     except Exception:
         return "unknown (not installed as a package)"
 
@@ -130,7 +130,7 @@ def _write_parents(path: str) -> None:
 @app.command()
 def doctor():
     """Report what this installation can do."""
-    console.print("[bold]pqc-scan preflight[/bold]")
+    console.print("[bold]pqscan preflight[/bold]")
     console.print(f"  Python                 {sys.version.split()[0]}  [green]ok[/green]")
     try:
         engine = RuleEngine()

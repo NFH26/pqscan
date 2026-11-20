@@ -14,7 +14,7 @@ transport gap no TLS scan of its mail server would reveal.
     ISM-1424  HSTS is specified in response headers        -> Strict-Transport-Security
 
 The DNS resolver here is deliberately minimal and hand-rolled, for the same reason the TLS
-and IKE probes are: it keeps the install to `pip install pqc-scan` with no system packages,
+and IKE probes are: it keeps the install to `pip install pqscan` with no system packages,
 and TXT lookups need none of what a full resolver library provides.
 """
 from __future__ import annotations

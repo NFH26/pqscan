@@ -6,6 +6,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
 Rule-profile changes are called out separately, because a new rules version can change a score
 without any code changing.
 
+## [0.4.1] - unreleased
+
+### Changed
+
+- **Published on PyPI as `pqscan`.** `pipx install pqscan` replaces the clone-and-setup step.
+  The name `pqc-scan` on PyPI belongs to an unrelated project. The `pqc` command is unchanged;
+  the long alias is now `pqscan` instead of `pqc-scan`.
+- The release workflow publishes to PyPI through trusted publishing, with no stored token.
+
 ## [0.4.0] - 2026-09-21
 
 First public release.

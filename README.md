@@ -77,20 +77,21 @@ Most scanners answer "is this TLS configuration good?". PQScan answers a differe
 
 ## Install
 
-Requires Python 3.11 or newer. Nothing else — not even OpenSSL.
+Requires Python 3.11 or newer. Nothing else, not even OpenSSL.
+
+```bash
+pipx install pqscan      # or: uv tool install pqscan
+pqc doctor
+```
+
+Plain `pip install pqscan` works too, inside a virtual environment.
+
+From source, for development:
 
 ```bash
 git clone https://github.com/NFH26/pqscan.git
 cd pqscan
 ./pqc setup
-```
-
-`./pqc setup` creates an isolated environment and runs a preflight check. On Windows, or
-without the launcher:
-
-```bash
-pip install -e .
-pqc doctor
 ```
 
 ## Common commands

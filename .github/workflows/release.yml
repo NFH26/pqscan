@@ -24,9 +24,20 @@ jobs:
       - uses: actions/upload-artifact@v7
         with: {name: dist, path: dist/}
 
-  # No PyPI job. Installation is a clone and `./pqc setup`, which keeps the GitHub page the
-  # one place people land. To publish to PyPI later, configure trusted publishing for the
-  # project and add a job that runs pypa/gh-action-pypi-publish against this build.
+  pypi:
+    # Trusted publishing: no token stored in the repo. Register the publisher once at
+    # https://pypi.org/manage/account/publishing/ (project pqscan, owner NFH26,
+    # repository pqscan, workflow release.yml, environment pypi).
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with: {name: dist, path: dist}
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
   github-release:
     needs: build
     runs-on: ubuntu-latest

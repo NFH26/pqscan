@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pqc-scan"
-version = "0.4.0"
-description = "Post-quantum readiness scanner for TLS and SSH, scored against the ASD ISM"
+name = "pqscan"
+version = "0.4.1"
+description = "Post-quantum readiness scanner for TLS, SSH, IPsec and email, scored against the Australian ASD ISM"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -42,7 +42,7 @@ Issues = "https://github.com/NFH26/pqscan/issues"
 Changelog = "https://github.com/NFH26/pqscan/blob/main/CHANGELOG.md"
 
 [project.scripts]
-pqc-scan = "pqc_scan.cli:app"
+pqscan = "pqc_scan.cli:app"
 pqc = "pqc_scan.cli:app"
 
 [project.optional-dependencies]
