@@ -6,7 +6,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 Rule-profile changes are called out separately, because a new rules version can change a score
 without any code changing.
 
-## [Unreleased]
+## [0.5.0] - 2026-11-21
 
 ### Changed
 
