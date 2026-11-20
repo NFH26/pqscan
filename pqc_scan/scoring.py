@@ -5,7 +5,7 @@ from typing import ClassVar
 import yaml
 
 from pqc_scan.models import CertificateData, Classification, HostFinding
-from pqc_scan.parsers import RuleEngine
+from pqc_scan.parsers import RuleEngine, cipher_match_name
 
 
 class Scorer:
@@ -335,7 +335,7 @@ class Scorer:
         confidentiality_findings: list[tuple[str, int]] = []
         if finding.tls_version and finding.tls_version not in tls_rules.get("approved_versions", []):
             confidentiality_findings.append(("tls_version_not_approved (ISM-1139)", protocol_weights.get("tls_version_not_approved", 0)))
-        cipher_name = (finding.cipher_suite or "").lower()
+        cipher_name = cipher_match_name(finding.cipher_suite)
         symmetric = tls_rules.get("symmetric", {})
         if cipher_name and "gcm" not in cipher_name:
             confidentiality_findings.append(("cipher_not_aes_gcm (ISM-1369)", protocol_weights.get("cipher_not_aes_gcm", 0)))
@@ -354,7 +354,7 @@ class Scorer:
             confidentiality_findings.append(("no_forward_secrecy (ISM-1372, ISM-1453)", protocol_weights.get("no_forward_secrecy", 0)))
         # What the server ACCEPTS, not just what it prefers. A downgrade attack does not ask
         # the server for its favourite suite.
-        accepted = [name.lower() for name in finding.accepted_cipher_suites]
+        accepted = [cipher_match_name(name) for name in finding.accepted_cipher_suites]
         weak_accepted = sorted({
             name for name in accepted
             if any(token and token in name for token in

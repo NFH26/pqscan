@@ -6,6 +6,17 @@ versioning follows [Semantic Versioning](https://semver.org/).
 Rule-profile changes are called out separately, because a new rules version can change a score
 without any code changing.
 
+## [Unreleased]
+
+### Fixed
+
+- **AES-128 is now flagged on TLS 1.3.** The rule looked for `aes128`, which is how OpenSSL
+  names TLS 1.2 suites, but TLS 1.3 writes `TLS_AES_128_GCM_SHA256`. TLS 1.3 endpoints on
+  AES-128 or AES-192 now get the `symmetric_not_approved_after_2030` finding and its 10
+  confidentiality points, like TLS 1.2 endpoints always did. `pqc verify --scores` uses the
+  same matching, so it still agrees with the scanner. The band and the plain verdict do not
+  change: AES-128 is approved until 2030.
+
 ## [0.5.1] - 2026-11-21
 
 ### Fixed

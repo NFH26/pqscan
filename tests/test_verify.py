@@ -103,3 +103,20 @@ def test_independent_score_check_uses_profile_weights():
 
     assert confidentiality == 20
     assert authentication == 65
+
+
+def test_verify_and_the_scanner_agree_on_aes_128():
+    # pqc verify re-scores from OpenSSL's facts. If only one side learned that TLS 1.3 writes
+    # AES_128, every TLS 1.3 AES-128 host would show as a DIFF.
+    from pqc_scan.checks import _scored
+
+    facts = {
+        "group": "X25519MLKEM768", "pq_groups": ["X25519MLKEM768"], "tls_version": "TLSv1.3",
+        "cipher_suite": "TLS_AES_128_GCM_SHA256", "leaf_signature": "sha256WithRSAEncryption",
+        "leaf_hash": "sha256", "leaf_key": "rsaEncryption 2048", "intermediate_signatures": [],
+        "validation_failures": [], "leaf_not_after": "Jan 1 2027 00:00:00 GMT",
+    }
+    confidentiality, _ = independent_scores(facts, {"criticality": "medium", "data_lifetime_years": 0})
+    scanner = _scored(negotiated_group="X25519MLKEM768", tls_version="TLSv1.3",
+                      cipher_suite="TLS_AES_128_GCM_SHA256", pq_status="supported")
+    assert confidentiality == scanner.confidentiality_score == 30

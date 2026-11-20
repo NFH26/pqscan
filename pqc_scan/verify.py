@@ -279,7 +279,7 @@ def independent_scores(actual: dict[str, Any], target: dict[str, Any], profile_n
     """Recompute scores from OpenSSL facts without calling the scanner scorer."""
     import yaml
 
-    from pqc_scan.parsers import RuleEngine
+    from pqc_scan.parsers import RuleEngine, cipher_match_name
 
     rules_path = Path(__file__).resolve().parent / "rules" / "scoring.yaml"
     with rules_path.open() as handle:
@@ -303,7 +303,7 @@ def independent_scores(actual: dict[str, Any], target: dict[str, Any], profile_n
         tls_version = actual.get("tls_version")
         if tls_version not in tls_rules.get("approved_versions", []):
             base += protocol_weights.get("tls_version_not_approved", 0)
-        cipher_name = str(actual.get("cipher_suite", "")).lower()
+        cipher_name = cipher_match_name(str(actual.get("cipher_suite", "")))
         symmetric = tls_rules.get("symmetric", {})
         if cipher_name and "gcm" not in cipher_name:
             base += protocol_weights.get("cipher_not_aes_gcm", 0)

@@ -382,3 +382,31 @@ def test_advice_names_the_service_not_just_the_host():
     assert "vpn-a.example:500 (ipsec)" in covered
     assert "vpn-b.example:500 (ipsec)" in covered
     assert "jump.example:22 (ssh)" in covered
+
+
+@pytest.mark.parametrize(("raw", "expected"), [
+    ("TLS_AES_128_GCM_SHA256", "tls_aes128_gcm_sha256"),        # TLS 1.3 / IANA
+    ("TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "tls_ecdhe_rsa_with_aes256_cbc_sha"),
+    ("ECDHE-RSA-AES128-GCM-SHA256", "ecdhe-rsa-aes128-gcm-sha256"),  # OpenSSL, unchanged
+    ("TLS_RSA_WITH_3DES_EDE_CBC_SHA", "tls_rsa_with_3des_ede_cbc_sha"),
+    (None, ""),
+])
+def test_cipher_names_are_normalised_only_around_the_aes_key_size(raw, expected):
+    from pqc_scan.parsers import cipher_match_name
+
+    assert cipher_match_name(raw) == expected
+
+
+@pytest.mark.parametrize("cipher", ["TLS_AES_128_GCM_SHA256", "ECDHE-RSA-AES128-GCM-SHA256"])
+def test_aes_128_is_flagged_whichever_way_the_suite_is_named(cipher):
+    # The bug: the rule token is `aes128`, TLS 1.3 says AES_128, so TLS 1.3 sites on AES-128
+    # never got the finding or its points.
+    from pqc_scan.checks import _scored
+
+    aes128 = _scored(negotiated_group="X25519MLKEM768", tls_version="TLSv1.3",
+                     cipher_suite=cipher, pq_status="supported")
+    aes256 = _scored(negotiated_group="X25519MLKEM768", tls_version="TLSv1.3",
+                     cipher_suite="TLS_AES_256_GCM_SHA384", pq_status="supported")
+    assert "symmetric_not_approved_after_2030" in aes128.rule_findings
+    assert "symmetric_not_approved_after_2030" not in aes256.rule_findings
+    assert aes128.confidentiality_score == aes256.confidentiality_score + 10

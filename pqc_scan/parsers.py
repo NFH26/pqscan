@@ -16,6 +16,18 @@ from pqc_scan.models import CertificateData, Classification
 _log = logging.getLogger(__name__)
 
 
+def cipher_match_name(cipher_suite: str | None) -> str:
+    """A cipher suite name in the form the symmetric rule tokens are written for.
+
+    The tokens say `aes128`, which is how OpenSSL names TLS 1.2 suites
+    (ECDHE-RSA-AES128-GCM-SHA256). TLS 1.3 and the IANA names write `AES_128`
+    (TLS_AES_128_GCM_SHA256), so AES-128 on TLS 1.3 was never flagged. Only the separator
+    inside the AES key size is removed: dropping every separator would let tokens like `des`
+    match across word boundaries.
+    """
+    return re.sub(r"aes[_-](128|192|256)", r"aes\1", (cipher_suite or "").lower())
+
+
 class RuleEngine:
     def __init__(self, profile_name: str = "asd_ism"):
         rules_path = Path(__file__).resolve().parent / "rules" / f"{profile_name}.yaml"
