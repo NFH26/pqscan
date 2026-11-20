@@ -24,6 +24,8 @@ jobs:
         python: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the version is read from git tags
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
@@ -39,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the version is read from git tags
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
@@ -53,6 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the version is read from git tags
       - uses: astral-sh/setup-uv@v10.2.0
       - run: uv build
       - run: uvx twine check dist/*
@@ -77,6 +83,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the version is read from git tags
       - uses: astral-sh/setup-uv@v10.2.0
       - run: uv sync --extra dev
       - run: uv run pqc selftest

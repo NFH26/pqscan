@@ -35,9 +35,14 @@ Alongside the scores, one 0–5 band per endpoint:
 that *can but does not* both score as classical. Only the second is a preference line away from
 compliant. Finding those is what the capability probe exists for, and nothing else surfaces it.
 
-Post-quantum readiness decides the band first, and the scores can only move it down within
-that, so a post-quantum endpoint is never banded below a classical one with the same
-weaknesses. Anything with no encryption or an
+Post-quantum readiness decides the band first, so a post-quantum endpoint is never banded
+below a classical one with the same weaknesses. Between 2 and 1 the band looks at what was
+found, not at the scores: an endpoint is Dated only if something on it is unapproved today,
+such as a TLS version older than 1.3, a cipher that is not AES-GCM, no forward secrecy, an
+unapproved algorithm or an undersized key. Things that are approved now and retire in 2030
+(classical ECDH, RSA and ECDSA certificates, AES-128) do not make it Dated. The list is
+`blocked_by_findings` in `rules/scoring.yaml`. The scores are not used because they include
+the criticality multiplier, and the band has to describe the endpoint, not the CSV. Anything with no encryption or an
 obsolete protocol is banded 0 regardless of score — that is absent security, not low maturity.
 An endpoint that could not be measured gets no band at all, because "unmeasured" is not a
 posture and a 0 would read as a finding.

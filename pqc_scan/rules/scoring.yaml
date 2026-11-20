@@ -178,13 +178,34 @@ readiness_band:
     2:
       name: "Sound classical"
       summary: "No post-quantum support, but current protocol versions and approved algorithms"
-      max_confidentiality: 75
-      max_authentication: 75
+      # Decided by evidence, never by score. The scores include the classical key exchange
+      # penalty and the criticality multiplier, so a score limit here made the same server
+      # "Sound classical" at low criticality and "Dated" at medium.
+      #
+      # Any of these findings means the endpoint is behind TODAY, so it is band 1. Things
+      # that are approved now and retire in 2030 (classical ECDH, RSA and ECDSA certificates,
+      # AES-128, SHA-256) do not count: band 3 and above already say what 2030 needs.
+      # Certificate validity (expired, wrong host, untrusted root) is not here either. It is
+      # reported as its own finding and in the authentication score, but it says nothing
+      # about how current the protocol or algorithms are.
+      # Any algorithm an SSH or IPsec endpoint lists as NOT_APPROVED also counts.
+      blocked_by_findings:
+        - tls_version_not_approved            # ISM-1139, not TLS 1.3
+        - cipher_not_aes_gcm                  # ISM-1369
+        - symmetric_not_approved              # not AES
+        - no_forward_secrecy                  # ISM-1372, ISM-1453
+        - static_rsa_key_transport_accepted   # ISM-1372, ISM-1453
+        - unapproved_cipher_accepted          # ISM-0471
+        - unapproved_algorithm_offered        # ISM-0471
+        - key_exchange_not_approved           # ISM-0471
+        - signature_not_approved              # ISM-0471, e.g. SHA-1 in the chain
+        - key_size_below_minimum              # ISM-0472, 0474, 0475, 0476
+        - classification_curve_violation      # ISM-1761 to 1764
+        - ssh_version_not_approved            # ISM-1506
+        - ipsec_encryption_not_aes_gcm        # ISM-1771
     1:
       name: "Dated"
       summary: "Reachable and encrypted, but behind on protocol version or algorithms"
-      max_confidentiality: 100
-      max_authentication: 100
     0:
       name: "Unprotected"
       summary: "No encryption, an obsolete protocol, or a service that will not encrypt"

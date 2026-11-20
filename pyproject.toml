@@ -1,10 +1,12 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "pqscan"
-version = "0.5.0"
+# The version comes from the git tag (v0.5.1 -> 0.5.1). Tagging is the whole release step:
+# a version written here by hand disagreed with its tag twice and stopped both releases.
+dynamic = ["version"]
 description = "Post-quantum readiness scanner for TLS, SSH, IPsec and email, scored against the Australian ASD ISM"
 readme = "README.md"
 license = "Apache-2.0"
@@ -53,6 +55,16 @@ dev = [
     "ruff>=0.16.8",
     "types-PyYAML",
 ]
+
+[tool.hatch.version]
+source = "vcs"
+# A copy with no git history (a GitHub zip download) still installs, as 0.0.0.
+fallback-version = "0.0.0"
+
+[tool.uv]
+# The version lives in git, so uv has to rebuild when a commit or tag changes, not only when
+# pyproject.toml does. Without this `pqc --version` can lag a fresh tag.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.mypy]
 # Not strict. Strict mode on a codebase that leans on pydantic and Typer produces a wall of

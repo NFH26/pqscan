@@ -122,14 +122,17 @@ def test_csv_comments_are_ignored(monkeypatch, tmp_path):
 
 
 def test_cache_metadata_fields_are_defined():
-    # Read from package metadata rather than hardcoded, so it cannot drift from
-    # pyproject.toml - it already had, within one release, and every report carries it.
+    # Every report carries this number. It comes from the git tag through the package
+    # metadata, so there is no second copy to drift, and pyproject.toml must not grow one.
+    import re
     import tomllib
 
-    packaged = tomllib.loads(
+    project = tomllib.loads(
         (pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
-    )["project"]["version"]
-    assert packaged == cli.TOOL_VERSION
+    )["project"]
+    assert "version" not in project
+    assert "version" in project["dynamic"]
+    assert re.match(r"^\d+\.\d+\.\d+", cli.TOOL_VERSION), cli.TOOL_VERSION
 
 def test_a_scope_file_that_excludes_everything_says_so(tmp_path, capsys, monkeypatch):
     # "No targets were provided" is wrong here: targets were provided and the scope file

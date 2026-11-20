@@ -7,6 +7,7 @@ and only the second is a configuration change away from done.
 """
 import pytest
 
+from pqc_scan.checks import _scored
 from pqc_scan.models import HostFinding, Target
 from pqc_scan.scoring import Scorer
 
@@ -50,7 +51,52 @@ def test_sound_classical_is_band_two():
 
 
 def test_dated_classical_is_band_one():
-    assert band("classical_only", 100, 100).readiness_band == 1
+    dated = band("classical_only", 100, 100, rule_findings=["tls_version_not_approved (ISM-1139)"])
+    assert dated.readiness_band == 1
+
+
+def test_a_high_score_alone_does_not_make_an_endpoint_dated():
+    # A sound classical TLS 1.3 server scores 100 before any multiplier: 80 for the classical
+    # key exchange and 20 for offering no post-quantum group. That is what bands 3 to 5 are
+    # about. Band 1 needs something unapproved today.
+    assert band("classical_only", 100, 100).readiness_band == 2
+
+
+@pytest.mark.parametrize("criticality", ["low", "medium", "high"])
+def test_criticality_does_not_move_the_band(criticality):
+    # The bug: the same server was "Sound classical" in a CSV marked low and "Dated" in one
+    # marked medium, because band 2 was a limit on the weighted score.
+    finding = _scored(negotiated_group="x25519", tls_version="TLSv1.3",
+                      cipher_suite="TLS_AES_256_GCM_SHA384", pq_status="not_supported",
+                      criticality=criticality)
+    assert finding.readiness_band == 2
+    assert finding.readiness_band_name == "Sound classical"
+
+
+@pytest.mark.parametrize(("version", "cipher"), [
+    ("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"),        # not the latest TLS
+    ("TLSv1.3", "TLS_CHACHA20_POLY1305_SHA256"),                  # not AES-GCM
+    ("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"),           # neither
+])
+def test_something_unapproved_today_is_dated(version, cipher):
+    finding = _scored(negotiated_group="x25519", tls_version=version, cipher_suite=cipher,
+                      pq_status="not_supported")
+    assert finding.readiness_band == 1
+
+
+def test_aes_128_is_not_dated():
+    # AES-128 is approved until 2030. Its finding, symmetric_not_approved_after_2030, must
+    # not be mistaken for symmetric_not_approved by a prefix match.
+    finding = band("classical_only", 100, 100, rule_findings=["symmetric_not_approved_after_2030"])
+    assert finding.readiness_band == 2
+
+
+def test_an_unapproved_ssh_algorithm_is_dated():
+    finding = band("classical_only", 100, 100, service="ssh", algorithms={
+        "key_exchange": [{"name": "curve25519-sha256", "classification": "NOT_APPROVED_AFTER_2030", "in_use": True}],
+        "signature": [{"name": "ssh-rsa", "classification": "NOT_APPROVED", "in_use": False}],
+    })
+    assert finding.readiness_band == 1
 
 
 @pytest.mark.parametrize(

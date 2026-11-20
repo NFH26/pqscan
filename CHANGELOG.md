@@ -6,6 +6,28 @@ versioning follows [Semantic Versioning](https://semver.org/).
 Rule-profile changes are called out separately, because a new rules version can change a score
 without any code changing.
 
+## [0.5.1] - 2026-11-21
+
+### Fixed
+
+- **The readiness band no longer depends on the criticality column.** Band 2 (Sound
+  classical) was a limit on the weighted score, so the same classical TLS 1.3 server was
+  band 2 in a CSV marked `low` and band 1 (Dated) in one marked `medium`. It is now decided by
+  what was found: an endpoint is Dated only if something on it is unapproved today (TLS older
+  than 1.3, a cipher that is not AES-GCM, no forward secrecy, an unapproved algorithm, an
+  undersized key). The list is `blocked_by_findings` in `rules/scoring.yaml`. Scores are
+  unchanged. Expect more classical endpoints in band 2 than before.
+- A TLS endpoint that negotiates an unapproved key exchange group, or serves a chain with an
+  unapproved signature such as SHA-1, now gets a named finding (`key_exchange_not_approved`,
+  `signature_not_approved`). Both were already scored; they were just not named.
+- In the plain view, the post-quantum fix is shown before certificate advice.
+
+### Changed
+
+- **The version comes from the git tag.** `pyproject.toml` no longer holds a version, so
+  tagging `v0.5.2` and pushing is the whole release step. A hand-written version disagreed
+  with its tag twice and stopped both releases.
+
 ## [0.5.0] - 2026-11-21
 
 ### Changed

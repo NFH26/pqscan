@@ -189,8 +189,11 @@ def check_docs_and_metadata_agree() -> CheckResult:
             result.detail = f"version {TOOL_VERSION} (installed; repository files not checked)"
         return result
 
+    # Between releases the version comes from git as something like 0.5.2.dev3+g1a2b3c4,
+    # which no changelog names. Only a tagged release has to have its entry.
     changelog = root / "CHANGELOG.md"
-    if changelog.exists() and TOOL_VERSION not in changelog.read_text(encoding="utf-8"):
+    released = re.fullmatch(r"\d+\.\d+\.\d+", TOOL_VERSION) is not None
+    if released and changelog.exists() and TOOL_VERSION not in changelog.read_text(encoding="utf-8"):
         problems.append(f"CHANGELOG.md has no entry for {TOOL_VERSION}")
     for name in ("README.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE"):
         if not (root / name).exists():
@@ -388,6 +391,29 @@ def check_unmeasured_is_never_compliant() -> CheckResult:
     return _result("scoring", "unmeasured is never reported as compliant", problems)
 
 
+def check_band_ignores_criticality() -> CheckResult:
+    """The band describes the endpoint, so the CSV's criticality column must not move it.
+
+    It used to: band 2 was a limit on the weighted score, so one server was "Sound classical"
+    at low criticality and "Dated" at medium.
+    """
+    problems: list[str] = []
+    for group, version, cipher in (
+        ("x25519", "TLSv1.3", "TLS_AES_256_GCM_SHA384"),
+        ("secp256r1", "TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"),
+        ("X25519MLKEM768", "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+    ):
+        bands = {
+            level: _scored(negotiated_group=group, tls_version=version, cipher_suite=cipher,
+                           pq_status="not_supported" if "MLKEM" not in group else "supported",
+                           criticality=level).readiness_band
+            for level in ("low", "medium", "high")
+        }
+        if len(set(bands.values())) != 1:
+            problems.append(f"{group} {version}: {bands}")
+    return _result("scoring", "the band does not depend on criticality", problems)
+
+
 def check_pqcmm_ordering() -> CheckResult:
     """Readiness must never lower a band, and a broken endpoint must sit at 0."""
     problems: list[str] = []
@@ -548,7 +574,7 @@ SUITES: dict[str, list[Callable[[], Any]]] = {
     "scoring": [
         check_weaker_crypto_never_scores_better, check_no_encryption_is_the_worst_case,
         check_scores_stay_in_range, check_unmeasured_is_never_compliant,
-        check_pqcmm_ordering, check_every_service_scores,
+        check_pqcmm_ordering, check_band_ignores_criticality, check_every_service_scores,
     ],
     "outputs": [check_outputs],
 }

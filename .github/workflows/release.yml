@@ -12,10 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the version is read from git tags
       - uses: astral-sh/setup-uv@v10.2.0
       - run: uv build
       - name: Check the tag matches the packaged version
-        # A release tagged v0.4.0 that ships 0.3.0 is a support problem forever.
+        # The version now comes from the tag itself, so this should always pass. It stays as
+        # a guard: if the tag was not found, the build gets a .dev version and stops here.
         run: |
           tag="${GITHUB_REF_NAME#v}"
           built=$(ls dist/*.whl | sed -E 's/.*-([0-9][^-]*)-py3.*/\1/')
@@ -43,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the version is read from git tags
       - uses: actions/download-artifact@v8
         with: {name: dist, path: dist}
       - uses: softprops/action-gh-release@v3

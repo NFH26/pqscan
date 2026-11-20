@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import ClassVar
 
@@ -264,19 +265,42 @@ class Scorer:
                 continue
             if rules.get("requires_pq_capability") and not self._offers_post_quantum(finding):
                 continue
-            limit = rules.get("max_confidentiality")
-            if limit is not None and finding.confidentiality_score > limit:
-                continue
-            limit = rules.get("max_authentication")
-            if limit is not None and (
-                finding.authentication_score is None or finding.authentication_score > limit
-            ):
+            blocked_by = rules.get("blocked_by_findings")
+            if blocked_by and self._unapproved_today(finding, blocked_by):
                 continue
             finding.readiness_band = int(level)
             finding.readiness_band_name = rules.get("name")
             return
         finding.readiness_band = 0
         finding.readiness_band_name = (levels.get(0) or {}).get("name", "Unprotected")
+
+    @staticmethod
+    def _unapproved_today(finding: HostFinding, tags: list[str]) -> list[str]:
+        """What puts this endpoint behind TODAY, as opposed to behind 2030.
+
+        This used to be read off the scores, which was wrong twice over. The scores carry the
+        classical key exchange penalty, so a sound TLS 1.3 server already sits at 100 before
+        anything else; and they carry the criticality multiplier, so the same server was
+        "Sound classical" in a CSV marked low and "Dated" in one marked medium. A band is a
+        statement about the endpoint, so it is decided by what was found on it.
+
+        Matches each finding by its tag, the part before any space, colon or bracket, so
+        `symmetric_not_approved` never matches `symmetric_not_approved_after_2030`.
+        """
+        wanted = set(tags)
+        found = [
+            tag for item in [*finding.rule_findings, *finding.validation_failures]
+            if (tag := re.split(r"[\s:(]", item, maxsplit=1)[0]) in wanted
+        ]
+        # SSH and IPsec list every algorithm with its classification. One that is not approved
+        # at all is the same evidence, whichever finding name a probe gave it.
+        found += [
+            f"{role} {item.get('name')}"
+            for role, entries in (finding.algorithms or {}).items()
+            for item in entries
+            if item.get("classification") == Classification.NOT_APPROVED.value
+        ]
+        return found
 
     @staticmethod
     def _offers_post_quantum(finding: HostFinding) -> bool:
@@ -398,6 +422,11 @@ class Scorer:
             finding.confidentiality_explanation = "Not measured (undetermined group or connection failed)."
         else:
             cls = engine.classify_key_exchange(finding.negotiated_group)
+            if cls == Classification.NOT_APPROVED and not any(
+                item.startswith("key_exchange_not_approved") for item in finding.rule_findings
+            ):
+                # Scored already; named here so the finding, and the band, can see it.
+                finding.rule_findings.append("key_exchange_not_approved (ISM-0471)")
             readiness = engine.rules.get("pq_readiness", {})
             finding.pq_readiness = next(
                 (name for name, classes in readiness.items() if cls.value in classes),
@@ -480,6 +509,12 @@ class Scorer:
                 reason_tag = f"{cert.sig_algo} intermediate: {cert.subject_cn or 'Unknown'}"
         if weakest_signature is not None:
             signature_points = auth_weights["signature_algorithm"][weakest_signature_class.value]
+            if weakest_signature_class == Classification.NOT_APPROVED and not any(
+                item.startswith("signature_not_approved") for item in finding.rule_findings
+            ):
+                # SHA-1, MD5, DSA and the like, anywhere in the chain. Scored already; named
+                # here so the finding, and the band, can see it.
+                finding.rule_findings.append("signature_not_approved (ISM-0471)")
             auth_score += signature_points
             auth_explanation.append(
                 f"weakest signature in chain: {weakest_signature.sig_algo} on "

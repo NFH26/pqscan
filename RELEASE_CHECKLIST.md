@@ -43,6 +43,20 @@ git log --format='%an <%ae>' | sort -u
 - Branches: protect `main`, require the `ci` check to pass.
 - Actions: allow only actions from GitHub and verified creators.
 
+## Every release
+
+The version comes from the git tag. There is no version number to edit anywhere.
+
+```bash
+./pqc test && ./pqc selftest --offline && ./pqc lint
+# add a "## [0.5.2] - <date>" section to CHANGELOG.md and commit it
+git tag -a v0.5.2 -m "PQScan 0.5.2"
+git push --follow-tags
+```
+
+Between releases `pqc --version` shows something like `0.5.2.dev3+g1a2b3c4`: three commits
+after the last tag. That is expected.
+
 ## First release
 
 ```bash
